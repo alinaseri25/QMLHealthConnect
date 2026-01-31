@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtCharts
 
 Item {
@@ -7,42 +8,235 @@ Item {
     visible: true
 
     signal updateSignal()
+    signal setHeight(double value)
+    signal setWeight(double value)
 
-    CButton{
-        id: updateBtn
-        text: "بروز رسانی"
+    // ===== قسمت inputPanel و دکمه باز/بسته آن =====
 
-        width: 100
-        height: 40
-
-        x: (parent.width / 2) - (width / 2)
-        y: 10
-
+    // دکمه باز/بسته پنل - بذار بالای پنل خودش باشه
+    CButton {
+        id: togglePanelBtn
+        text: inputPanel.expanded ? "◀" : "▶"
+        width: 30
+        height: 30
+        anchors.right: inputPanel.left + 50
+        anchors.top: parent.top
+        anchors.topMargin: 5
+        z: 1
 
         onClicked: {
-            updateSignal()
+            inputPanel.expanded = !inputPanel.expanded
         }
     }
 
-    Text{
-        id: debugText
-        x: 0
-        y: 0
-        width: 200
-        height: 50
+    Rectangle {
+        id: inputPanel
+        property bool expanded: true
+
+        // وقتی باز هست 220، وقتی بسته هست 0
+        width: expanded ? 220 : 0
+        height: parent.height
+        anchors.right: parent.right
+        color: "#f0f0f0"
+        border.color: "#bbbbbb"
+        border.width: expanded ? 1 : 0
+        clip: true  // وقتی عرض کم میشه محتوا پنهان میشه
+
+        // انیمیشن صدا زدن عرض
+        Behavior on width {
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 12
+            // اگه پنل بسته باشه پنهان کن
+            visible: expanded
+
+            // عنوان
+            Text {
+                text: "ثبت اطلاعات سلامت"
+                font.pixelSize: 14
+                font.bold: true
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                color: "#333333"
+            }
+
+            // خط جدا کننده
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#cccccc"
+            }
+
+            // ===== قد =====
+            Column {
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: "قد (متر)"
+                    font.pixelSize: 13
+                    color: "#444444"
+                }
+
+                TextField {
+                    id: heightInput
+                    width: parent.width
+                    height: 32
+                    placeholderText: "مثال: 1.75"
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+
+                    validator: DoubleValidator {
+                        bottom: 0.5
+                        top: 2.5
+                        decimals: 2
+                    }
+
+                    background: Rectangle {
+                        color: "white"
+                        border.color: "#aaaaaa"
+                        border.width: 1
+                        radius: 3
+                    }
+                }
+
+                CButton {
+                    text: "ثبت قد"
+                    width: parent.width
+                    height: 32
+                    enabled: heightInput.text.length > 0
+
+                    onClicked: {
+                        let value = parseFloat(heightInput.text)
+                        if (isNaN(value) || value < 0.5 || value > 2.5) {
+                            heightStatus.text = "مقدار باید بین 0.5 تا 2.5 باشد"
+                            heightStatus.color = "#cc0000"
+                            return
+                        }
+                        heightStatus.text = "در حال ثبت..."
+                        heightStatus.color = "#cc8800"
+                        //myBackend.writeHeight(value)
+                        setHeight(value)
+                    }
+                }
+
+                Text {
+                    id: heightStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                    text: ""
+                }
+            }
+
+            // خط جدا کننده
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#cccccc"
+            }
+
+            // ===== وزن =====
+            Column {
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: "وزن (کیلوگرم)"
+                    font.pixelSize: 13
+                    color: "#444444"
+                }
+
+                TextField {
+                    id: weightInput
+                    width: parent.width
+                    height: 32
+                    placeholderText: "مثال: 70.5"
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+
+                    validator: DoubleValidator {
+                        bottom: 20.0
+                        top: 300.0
+                        decimals: 2
+                    }
+
+                    background: Rectangle {
+                        color: "white"
+                        border.color: "#aaaaaa"
+                        border.width: 1
+                        radius: 3
+                    }
+                }
+
+                CButton {
+                    text: "ثبت وزن"
+                    width: parent.width
+                    height: 32
+                    enabled: weightInput.text.length > 0
+
+                    onClicked: {
+                        let value = parseFloat(weightInput.text)
+                        if (isNaN(value) || value < 20.0 || value > 300.0) {
+                            weightStatus.text = "مقدار باید بین 20 تا 300 باشد"
+                            weightStatus.color = "#cc0000"
+                            return
+                        }
+                        weightStatus.text = "در حال ثبت..."
+                        weightStatus.color = "#cc8800"
+                        //myBackend.writeWeight(value)
+                        setWeight(value)
+                    }
+                }
+
+                Text {
+                    id: weightStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                    text: ""
+                }
+            }
+
+            // خط جدا کننده
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#cccccc"
+            }
+
+            // دکمه بروزرسانی
+            CButton {
+                text: "بروزرسانی نمودار"
+                btnWidth: parent.width
+                btnHeight: 32
+                bgColor: "#757575"
+                bgPressed: "#616161"
+                onClicked: updateSignal()
+            }
+        }
     }
+
 
     ChartView {
         id: chartView
         title: "Spline Chart"
 
-        antialiasing: true
         x: 0
         y: 50
-        width: parent.width
+        width: parent.width - inputPanel.width
         height: parent.height - 50
 
+        antialiasing: true
         animationOptions: ChartView.NoAnimation
+        legend.alignment: Qt.AlignTop
 
         // ✅ محور X را DateTime تعریف می‌کنیم
         DateTimeAxis {
@@ -237,7 +431,7 @@ Item {
         width: 100
         height: 40
 
-        x: updateBtn.x - 120
+        x: (parent.width / 2) - 110
         y: 10
 
 
@@ -253,7 +447,7 @@ Item {
         width: 100
         height: 40
 
-        x: updateBtn.x + 120
+        x: (parent.width / 2) + 10
         y: 10
 
 
@@ -264,6 +458,8 @@ Item {
 
     Component.onCompleted: {
         updateSignal.connect(myBackend.onUpdateRequest)
+        setHeight.connect(myBackend.writeHeight)
+        setWeight.connect(myBackend.writeWeight)
     }
 
     Connections{

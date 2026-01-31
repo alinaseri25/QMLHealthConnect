@@ -10,6 +10,91 @@ void Backend::onUpdateRequest()
     readData();
 }
 
+void Backend::writeHeight(double heightMeters)
+{
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        qDebug() << "❌ Activity is invalid!";
+        //emit heightWritten(false, "Activity is invalid");
+        return;
+    }
+
+    // بررسی اعتبار مقدار قد (بین 0.5 تا 2.5 متر)
+    if (heightMeters < 0.1 || heightMeters > 3) {
+        qDebug() << "❌ Invalid height value: " << heightMeters;
+        //emit heightWritten(false, QString("مقدار قد نامعتبر است: %1 متر").arg(heightMeters));
+        return;
+    }
+
+    qDebug() << "📝 Writing height: " << heightMeters << " meters";
+
+    // فراخوانی متد Kotlin برای نوشتن قد
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeHeight",
+        "(D)Ljava/lang/String;",
+        heightMeters
+        );
+
+    QString status = result.toString();
+    qDebug() << "✅ Write height result: " << status;
+
+    // بررسی موفقیت‌آمیز بودن
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    //emit heightWritten(success, status);
+
+#else
+    qDebug() << "Not Android - Height write skipped";
+    emit heightWritten(false, "Not running on Android");
+#endif
+}
+
+void Backend::writeWeight(double weightKg)
+{
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        qDebug() << "❌ Activity is invalid!";
+        //emit weightWritten(false, "Activity is invalid");
+        return;
+    }
+
+    // بررسی اعتبار مقدار وزن (بین 20 تا 300 کیلوگرم)
+    if (weightKg < 0.1 || weightKg > 300.0) {
+        qDebug() << "❌ Invalid weight value: " << weightKg;
+        //emit weightWritten(false, QString("مقدار وزن نامعتبر است: %1 کیلوگرم").arg(weightKg));
+        return;
+    }
+
+    qDebug() << "📝 Writing weight: " << weightKg << " kg";
+
+    // فراخوانی متد Kotlin برای نوشتن وزن
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeWeight",
+        "(D)Ljava/lang/String;",
+        weightKg
+        );
+
+    QString status = result.toString();
+    qDebug() << "✅ Write weight result: " << status;
+
+    // بررسی موفقیت‌آمیز بودن
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    //emit weightWritten(success, status);
+
+#else
+    qDebug() << "Not Android - Weight write skipped";
+    emit weightWritten(false, "Not running on Android");
+#endif
+
+}
+
 
 void Backend::permissionRequest()
 {

@@ -26,6 +26,8 @@ public:
 
 public slots:
     void onUpdateRequest(void);
+    void writeHeight(double heightMeters);
+    void writeWeight(double weightKg);
 
 private:
     QList<QPointF> hList,wList;

@@ -291,17 +291,22 @@ object HealthBridge {
     }
 
     /**
-     * ✅ نوشتن داده تست برای Height
+     * ✅ نوشتن قد با مقدار دلخواه
      */
     @JvmStatic
-    fun writeTestHeight(): String {
+    fun writeHeight(heightMeters: Double): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            Log.d(TAG, "📝 Writing test height...")
+            // اعتبارسنجی مقدار
+            if (heightMeters < 0.1 || heightMeters > 3) {
+                return "ERROR: Invalid height value ($heightMeters m). Must be between 0.1 and 3 meters."
+            }
+
+            Log.d(TAG, "📝 Writing height: $heightMeters m")
 
             val heightRecord = HeightRecord(
-                height = androidx.health.connect.client.units.Length.meters(1.75),
+                height = androidx.health.connect.client.units.Length.meters(heightMeters),
                 time = Instant.now(),
                 zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now())
             )
@@ -310,12 +315,12 @@ object HealthBridge {
                 client.insertRecords(listOf(heightRecord))
             }
 
-            Log.d(TAG, "✅ Test height written: 1.75m")
-            "TEST_HEIGHT_WRITTEN: 1.75m"
+            Log.d(TAG, "✅ Height written successfully: $heightMeters m")
+            "SUCCESS: Height $heightMeters m saved at ${Instant.now()}"
 
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error: No write permission", e)
-            "SECURITY_ERROR"
+            "SECURITY_ERROR: No write permission for height"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing height", e)
             "ERROR: ${e.message}"
@@ -323,17 +328,22 @@ object HealthBridge {
     }
 
     /**
-     * ✅ نوشتن داده تست برای Weight
+     * ✅ نوشتن وزن با مقدار دلخواه
      */
     @JvmStatic
-    fun writeTestWeight(): String {
+    fun writeWeight(weightKg: Double): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            Log.d(TAG, "📝 Writing test weight...")
+            // اعتبارسنجی مقدار
+            if (weightKg < 0.1 || weightKg > 300.0) {
+                return "ERROR: Invalid weight value ($weightKg kg). Must be between 0.1 and 300 kg."
+            }
+
+            Log.d(TAG, "📝 Writing weight: $weightKg kg")
 
             val weightRecord = WeightRecord(
-                weight = androidx.health.connect.client.units.Mass.kilograms(70.0),
+                weight = androidx.health.connect.client.units.Mass.kilograms(weightKg),
                 time = Instant.now(),
                 zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now())
             )
@@ -342,12 +352,12 @@ object HealthBridge {
                 client.insertRecords(listOf(weightRecord))
             }
 
-            Log.d(TAG, "✅ Test weight written: 70kg")
-            "TEST_WEIGHT_WRITTEN: 70kg"
+            Log.d(TAG, "✅ Weight written successfully: $weightKg kg")
+            "SUCCESS: Weight $weightKg kg saved at ${Instant.now()}"
 
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error: No write permission", e)
-            "SECURITY_ERROR"
+            "SECURITY_ERROR: No write permission for weight"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing weight", e)
             "ERROR: ${e.message}"
