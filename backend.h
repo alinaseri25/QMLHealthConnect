@@ -37,6 +37,8 @@ private:
 
 signals:
     void newDataRead(QList<QPointF> hList,QList<QPointF> wList);
+    void heightWritten(bool success, QString message);
+    void weightWritten(bool success, QString message);
 };
 
 #endif // BACKEND_H

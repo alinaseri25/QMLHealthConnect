@@ -2,7 +2,9 @@
 
 Backend::Backend(QObject *parent)
     : QObject{parent}
-{}
+{
+    readData();
+}
 
 void Backend::onUpdateRequest()
 {
@@ -17,14 +19,14 @@ void Backend::writeHeight(double heightMeters)
 
     if (!activity.isValid()) {
         qDebug() << "❌ Activity is invalid!";
-        //emit heightWritten(false, "Activity is invalid");
+        emit heightWritten(false, "Activity is invalid");
         return;
     }
 
     // بررسی اعتبار مقدار قد (بین 0.5 تا 2.5 متر)
     if (heightMeters < 0.1 || heightMeters > 3) {
         qDebug() << "❌ Invalid height value: " << heightMeters;
-        //emit heightWritten(false, QString("مقدار قد نامعتبر است: %1 متر").arg(heightMeters));
+        emit heightWritten(false, QString("مقدار قد نامعتبر است: %1 متر").arg(heightMeters));
         return;
     }
 
@@ -44,7 +46,7 @@ void Backend::writeHeight(double heightMeters)
     // بررسی موفقیت‌آمیز بودن
     bool success = !status.contains("ERROR") && !status.contains("NULL");
 
-    //emit heightWritten(success, status);
+    emit heightWritten(success, status);
 
 #else
     qDebug() << "Not Android - Height write skipped";
@@ -59,14 +61,14 @@ void Backend::writeWeight(double weightKg)
 
     if (!activity.isValid()) {
         qDebug() << "❌ Activity is invalid!";
-        //emit weightWritten(false, "Activity is invalid");
+        emit weightWritten(false, "Activity is invalid");
         return;
     }
 
     // بررسی اعتبار مقدار وزن (بین 20 تا 300 کیلوگرم)
     if (weightKg < 0.1 || weightKg > 300.0) {
         qDebug() << "❌ Invalid weight value: " << weightKg;
-        //emit weightWritten(false, QString("مقدار وزن نامعتبر است: %1 کیلوگرم").arg(weightKg));
+        emit weightWritten(false, QString("مقدار وزن نامعتبر است: %1 کیلوگرم").arg(weightKg));
         return;
     }
 
@@ -86,7 +88,7 @@ void Backend::writeWeight(double weightKg)
     // بررسی موفقیت‌آمیز بودن
     bool success = !status.contains("ERROR") && !status.contains("NULL");
 
-    //emit weightWritten(success, status);
+    emit weightWritten(success, status);
 
 #else
     qDebug() << "Not Android - Weight write skipped";
