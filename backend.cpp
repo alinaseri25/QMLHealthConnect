@@ -8,7 +8,7 @@ Backend::Backend(QObject *parent)
 
 void Backend::onUpdateRequest()
 {
-    //qDebug() << QString("inja ooooooooooomad");
+    qDebug() << QString("inja ooooooooooomad");
     readData();
 }
 

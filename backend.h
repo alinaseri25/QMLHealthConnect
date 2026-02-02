@@ -10,9 +10,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QJniObject>
 
 #ifdef Q_OS_ANDROID
+#include <QJniObject>
 #include <QCoreApplication>
 #include <QtCore/qnativeinterface.h>
 #include <QJniEnvironment>
