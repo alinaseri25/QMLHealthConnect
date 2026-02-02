@@ -583,6 +583,7 @@ Item {
 
         onClicked: {
             spLine1.visible = !spLine1.visible
+            axisY1.visible = spLine1.visible
         }
     }
 
@@ -599,6 +600,7 @@ Item {
 
         onClicked: {
             spLine2.visible = !spLine2.visible
+            axisY2.visible = spLine2.visible
         }
     }
 
@@ -616,6 +618,7 @@ Item {
         onClicked: {
             spLine3.visible = !spLine3.visible
             spLine4.visible = !spLine4.visible
+            axisY3.visible = spLine3.visible
         }
     }
 
