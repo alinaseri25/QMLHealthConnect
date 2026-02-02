@@ -8,6 +8,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.HeightRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.BloodPressureRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.*
@@ -32,7 +33,9 @@ object HealthBridge {
         HealthPermission.getReadPermission(HeightRecord::class),
         HealthPermission.getWritePermission(HeightRecord::class),
         HealthPermission.getReadPermission(WeightRecord::class),
-        HealthPermission.getWritePermission(WeightRecord::class)
+        HealthPermission.getWritePermission(WeightRecord::class),
+        HealthPermission.getReadPermission(BloodPressureRecord::class),
+        HealthPermission.getWritePermission(BloodPressureRecord::class)
     )
 
     @JvmStatic
@@ -360,6 +363,118 @@ object HealthBridge {
             "SECURITY_ERROR: No write permission for weight"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing weight", e)
+            "ERROR: ${e.message}"
+        }
+    }
+
+    /**
+     * ✅ خواندن فشار خون با بازه زمانی گسترده
+     */
+    @JvmStatic
+    fun readBloodPressure(): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+
+        return try {
+            Log.d(TAG, "🩺 Reading blood pressure data...")
+
+            val end = Instant.now()
+            val start = Instant.parse("2000-01-01T00:00:00.000Z")
+
+            Log.d(TAG, "⏰ Time range: $start to $end")
+
+            val request = ReadRecordsRequest(
+                recordType = BloodPressureRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(start, end)
+            )
+
+            val response = runBlocking(Dispatchers.IO) {
+                client.readRecords(request)
+            }
+
+            Log.d(TAG, "📊 Found ${response.records.size} blood pressure records")
+
+            if (response.records.isEmpty()) {
+                return "NO_BP_DATA"
+            }
+
+            val arr = JSONArray()
+            response.records.forEach { record ->
+                val systolic = record.systolic.inMillimetersOfMercury
+                val diastolic = record.diastolic.inMillimetersOfMercury
+
+                Log.d(TAG, "  ➤ BP: $systolic/$diastolic mmHg at ${record.time}")
+
+                val obj = JSONObject().apply {
+                    put("systolic_mmhg", systolic)
+                    put("diastolic_mmhg", diastolic)
+                    put("time", record.time.toString())
+
+                    // ✅ اطلاعات اضافی (اختیاری)
+                    put("body_position", record.bodyPosition ?: 0)
+                    put("measurement_location", record.measurementLocation ?: 0)
+                }
+                arr.put(obj)
+            }
+
+            arr.toString()
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error: No permission", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading blood pressure", e)
+            "ERROR: ${e.message}"
+        }
+    }
+
+    /**
+     * ✅ نوشتن فشار خون
+     * @param systolicMmHg فشار سیستولیک (80-200)
+     * @param diastolicMmHg فشار دیاستولیک (40-130)
+     */
+    @JvmStatic
+    fun writeBloodPressure(systolicMmHg: Double, diastolicMmHg: Double): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+
+        return try {
+            // ✅ اعتبارسنجی دقیق
+            if (systolicMmHg < 80 || systolicMmHg > 200) {
+                return "ERROR: Invalid systolic value ($systolicMmHg). Must be 80-200 mmHg."
+            }
+
+            if (diastolicMmHg < 40 || diastolicMmHg > 130) {
+                return "ERROR: Invalid diastolic value ($diastolicMmHg). Must be 40-130 mmHg."
+            }
+
+            // ✅ بررسی منطقی بودن: سیستولیک باید بزرگتر از دیاستولیک باشه
+            if (systolicMmHg <= diastolicMmHg) {
+                return "ERROR: Systolic must be greater than diastolic."
+            }
+
+            Log.d(TAG, "📝 Writing blood pressure: $systolicMmHg/$diastolicMmHg mmHg")
+
+            val bpRecord = BloodPressureRecord(
+                systolic = androidx.health.connect.client.units.Pressure.millimetersOfMercury(systolicMmHg),
+                diastolic = androidx.health.connect.client.units.Pressure.millimetersOfMercury(diastolicMmHg),
+                time = Instant.now(),
+                zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now()),
+                // ✅ می‌تونی body position هم اضافه کنی (اختیاری)
+                bodyPosition = BloodPressureRecord.BODY_POSITION_STANDING_UP,
+                measurementLocation = BloodPressureRecord.MEASUREMENT_LOCATION_LEFT_WRIST
+            )
+
+            runBlocking(Dispatchers.IO) {
+                client.insertRecords(listOf(bpRecord))
+            }
+
+            Log.d(TAG, "✅ Blood pressure written: $systolicMmHg/$diastolicMmHg mmHg")
+            "SUCCESS: BP $systolicMmHg/$diastolicMmHg mmHg saved at ${Instant.now()}"
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error: No write permission", e)
+            "SECURITY_ERROR: No write permission for blood pressure"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error writing blood pressure", e)
             "ERROR: ${e.message}"
         }
     }

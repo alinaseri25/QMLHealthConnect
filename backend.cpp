@@ -97,6 +97,61 @@ void Backend::writeWeight(double weightKg)
 
 }
 
+void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
+{
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        qDebug() << "❌ Activity is invalid!";
+        emit bloodPressureWritten(false, "Activity is invalid");
+        return;
+    }
+
+    // ✅ اعتبارسنجی
+    if (systolicMmHg < 80 || systolicMmHg > 200) {
+        qDebug() << "❌ Invalid systolic value: " << systolicMmHg;
+        emit bloodPressureWritten(false,
+                                  QString("مقدار فشار سیستولیک نامعتبر است: %1 mmHg").arg(systolicMmHg));
+        return;
+    }
+
+    if (diastolicMmHg < 40 || diastolicMmHg > 130) {
+        qDebug() << "❌ Invalid diastolic value: " << diastolicMmHg;
+        emit bloodPressureWritten(false,
+                                  QString("مقدار فشار دیاستولیک نامعتبر است: %1 mmHg").arg(diastolicMmHg));
+        return;
+    }
+
+    if (systolicMmHg <= diastolicMmHg) {
+        qDebug() << "❌ Systolic must be > diastolic";
+        emit bloodPressureWritten(false, "فشار سیستولیک باید بزرگتر از دیاستولیک باشد");
+        return;
+    }
+
+    qDebug() << "📝 Writing BP: " << systolicMmHg << "/" << diastolicMmHg << " mmHg";
+
+    // ✅ فراخوانی متد Kotlin
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeBloodPressure",
+        "(DD)Ljava/lang/String;",
+        systolicMmHg,
+        diastolicMmHg
+        );
+
+    QString status = result.toString();
+    qDebug() << "✅ Write BP result: " << status;
+
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+    emit bloodPressureWritten(success, status);
+
+#else
+    qDebug() << "Not Android - BP write skipped";
+    emit bloodPressureWritten(false, "Not running on Android");
+#endif
+}
+
 
 void Backend::permissionRequest()
 {
@@ -148,6 +203,8 @@ void Backend::readData()
 {
     hList.clear();
     wList.clear();
+    bpSystolicList.clear();
+    bpDiastolicList.clear();
 #ifdef Q_OS_ANDROID
     QJniObject context = QNativeInterface::QAndroidApplication::context();
     if (!context.isValid()) {
@@ -180,6 +237,7 @@ void Backend::readData()
         //ui->txtData->append(QString("قد : %1 و زمان ثبت : %2").arg(obj["height_m"].toDouble()).arg(dateTime.toString(QString("yyyy/mm/dd hh:MM:ss"))));
         //series1->append(dateTime.toSecsSinceEpoch(),(obj["height_m"].toDouble() * 100));
     }
+    delete document;
 
     //Weight
     result = QJniObject::callStaticObjectMethod(
@@ -202,7 +260,49 @@ void Backend::readData()
         //ui->txtData->append(QString("وزن : %1 و زمان ثبت : %2").arg(obj["weight_kg"].toDouble()).arg(dateTime.toString(QString("yyyy/mm/dd hh:MM:ss"))));
         //series2->append(dateTime.toSecsSinceEpoch(),obj["weight_kg"].toDouble());
     }
-    emit newDataRead(hList,wList);
+    delete document;
+
+    // ✅ خواندن Blood Pressure
+    result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "readBloodPressure",
+        "()Ljava/lang/String;"
+        );
+
+    status = result.toString();
+
+    // ✅ بررسی اینکه داده وجود داره یا نه
+    if (!status.contains("NO_BP_DATA") && !status.contains("ERROR")) {
+        QJsonDocument* bpDocument = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
+        QJsonArray bpArr = bpDocument->array();
+
+        for(qsizetype i = 0; i < bpArr.size(); i++) {
+            QJsonObject obj = bpArr.at(i).toObject();
+            QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+
+            // ✅ سیستولیک
+            QPointF systolicPoint;
+            systolicPoint.setX(dateTime.toMSecsSinceEpoch());
+            systolicPoint.setY(obj["systolic_mmhg"].toDouble());
+            bpSystolicList.append(systolicPoint);
+
+            // ✅ دیاستولیک
+            QPointF diastolicPoint;
+            diastolicPoint.setX(dateTime.toMSecsSinceEpoch());
+            diastolicPoint.setY(obj["diastolic_mmhg"].toDouble());
+            bpDiastolicList.append(diastolicPoint);
+
+            qDebug() << "BP Read: " << obj["systolic_mmhg"].toDouble()
+                     << "/" << obj["diastolic_mmhg"].toDouble()
+                     << " at " << dateTime.toString();
+        }
+
+        delete bpDocument; // ✅ حل مشکل Memory Leak
+    }
+
+    // ✅ تغییر emit برای اضافه کردن BP
+    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList);
+
 
 #else
     qDebug() << "Not Android";

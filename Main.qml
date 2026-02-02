@@ -10,6 +10,7 @@ Item {
     signal updateSignal()
     signal setHeight(double value)
     signal setWeight(double value)
+    signal setBloodPressure(double systolic, double diastolic)
 
     ChartView {
         id: chartView
@@ -65,6 +66,16 @@ Item {
             titleText: "وزن"
         }
 
+        ValueAxis {
+            id: axisY3
+            min: 60        // حداقل واقع‌گرایانه
+            max: 200       // حداکثر واقع‌گرایانه
+            tickCount: 8   // تقسیم‌بندی مناسب (60, 80, 100, 120, 140, 160, 180, 200)
+            labelFormat: "%.0f"  // بدون اعشار (چون mmHg عدد صحیح هست)
+            titleText: "فشار خون (mmHg)"
+            color: "#d32f2f"  // رنگ قرمز برای تشخیص آسان
+        }
+
         SplineSeries {
         //LineSeries {
             id: spLine1
@@ -83,6 +94,30 @@ Item {
 
             axisX: axisX
             axisY: axisY2
+        }
+
+        // ✅ Systolic Blood Pressure (فشار سیستولیک)
+        LineSeries {
+            id: spLine3
+            name: "فشار سیستولیک"
+            useOpenGL: true
+            color: "#d32f2f"      // قرمز تیره
+            width: 2
+
+            axisX: axisX
+            axisY: axisY3
+        }
+
+        // ✅ Diastolic Blood Pressure (فشار دیاستولیک)
+        LineSeries {
+            id: spLine4
+            name: "فشار دیاستولیک"
+            useOpenGL: true
+            color: "#1976d2"      // آبی تیره
+            width: 2
+
+            axisX: axisX
+            axisY: axisY3
         }
 
         // PinchArea و MouseArea همون‌طوری که قبلاً بود...
@@ -231,16 +266,14 @@ Item {
         id: inputPanel
         property bool expanded: true
 
-        // وقتی باز هست 220، وقتی بسته هست 0
         width: expanded ? 220 : 0
         height: parent.height
         anchors.right: parent.right
         color: "#f0f0f0"
         border.color: "#bbbbbb"
         border.width: expanded ? 1 : 0
-        clip: true  // وقتی عرض کم میشه محتوا پنهان میشه
+        clip: true
 
-        // انیمیشن صدا زدن عرض
         Behavior on width {
             NumberAnimation {
                 duration: 200
@@ -248,180 +281,291 @@ Item {
             }
         }
 
-        Column {
+        // ✅ اضافه کردن ScrollView
+        ScrollView {
+            id: scrollView
             anchors.fill: parent
-            anchors.margins: 10
-            spacing: 12
-            // اگه پنل بسته باشه پنهان کن
+            anchors.margins: 0
             visible: expanded
+            clip: true
 
-            // عنوان
-            Text {
-                text: "ثبت اطلاعات سلامت"
-                font.pixelSize: 14
-                font.bold: true
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                color: "#333333"
-            }
+            // تنظیمات اسکرول بار
+            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-            // خط جدا کننده
-            Rectangle {
-                width: parent.width
-                height: 1
-                color: "#cccccc"
-            }
-
-            // ===== قد =====
             Column {
-                width: parent.width
-                spacing: 6
+                width: scrollView.width - 20 // فاصله برای اسکرول بار
+                spacing: 12
+                padding: 10
 
+                // عنوان
                 Text {
-                    text: "قد (متر)"
-                    font.pixelSize: 13
-                    color: "#444444"
+                    text: "ثبت اطلاعات سلامت"
+                    font.pixelSize: 14
+                    font.bold: true
+                    width: parent.width - 20
+                    horizontalAlignment: Text.AlignHCenter
+                    color: "#333333"
                 }
 
-                TextField {
-                    id: heightInput
-                    width: parent.width
-                    height: 32
-                    placeholderText: "مثال: 1.75"
-                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                Rectangle { width: parent.width - 20; height: 1; color: "#cccccc" }
 
-                    validator: DoubleValidator {
-                        bottom: 0.1
-                        top: 3
-                        decimals: 2
+                // ===== قد =====
+                Column {
+                    width: parent.width - 20
+                    spacing: 6
+
+                    Text {
+                        text: "قد (متر)"
+                        font.pixelSize: 13
+                        color: "#444444"
                     }
 
-                    background: Rectangle {
-                        color: "white"
-                        border.color: "#aaaaaa"
-                        border.width: 1
-                        radius: 3
-                    }
-                }
+                    TextField {
+                        id: heightInput
+                        width: parent.width
+                        height: 32
+                        placeholderText: "مثال: 1.75"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
 
-                CButton {
-                    text: "ثبت قد"
-                    width: parent.width
-                    height: 32
-                    enabled: heightInput.text.length > 0
-                    bgColor: "#4caf50"
-                    bgPressed: "#43a047"
-
-                    onClicked: {
-                        let value = parseFloat(heightInput.text)
-                        if (isNaN(value) || value < 0.1 || value > 3) {
-                            heightStatus.text = "مقدار باید بین 0.5 تا 2.5 باشد"
-                            heightStatus.color = "#cc0000"
-                            return
+                        validator: DoubleValidator {
+                            bottom: 0.1
+                            top: 3
+                            decimals: 2
                         }
-                        heightStatus.text = "در حال ثبت..."
-                        heightStatus.color = "#cc8800"
-                        //myBackend.writeHeight(value)
-                        setHeight(value)
-                    }
-                }
 
-                Text {
-                    id: heightStatus
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    font.pixelSize: 11
-                    color: "gray"
-                    text: ""
-                }
-            }
-
-            // خط جدا کننده
-            Rectangle {
-                width: parent.width
-                height: 1
-                color: "#cccccc"
-            }
-
-            // ===== وزن =====
-            Column {
-                width: parent.width
-                spacing: 6
-
-                Text {
-                    text: "وزن (کیلوگرم)"
-                    font.pixelSize: 13
-                    color: "#444444"
-                }
-
-                TextField {
-                    id: weightInput
-                    width: parent.width
-                    height: 32
-                    placeholderText: "مثال: 70.5"
-                    inputMethodHints: Qt.ImhFormattedNumbersOnly
-
-                    validator: DoubleValidator {
-                        bottom: 0.1
-                        top: 300.0
-                        decimals: 2
-                    }
-
-                    background: Rectangle {
-                        color: "white"
-                        border.color: "#aaaaaa"
-                        border.width: 1
-                        radius: 3
-                    }
-                }
-
-                CButton {
-                    text: "ثبت وزن"
-                    width: parent.width
-                    height: 32
-                    enabled: weightInput.text.length > 0
-                    bgColor: "#4caf50"
-                    bgPressed: "#43a047"
-
-                    onClicked: {
-                        let value = parseFloat(weightInput.text)
-                        if (isNaN(value) || value < 0.1 || value > 300.0) {
-                            weightStatus.text = "مقدار باید بین 20 تا 300 باشد"
-                            weightStatus.color = "#cc0000"
-                            return
+                        background: Rectangle {
+                            color: "white"
+                            border.color: "#aaaaaa"
+                            border.width: 1
+                            radius: 3
                         }
-                        weightStatus.text = "در حال ثبت..."
-                        weightStatus.color = "#cc8800"
-                        //myBackend.writeWeight(value)
-                        setWeight(value)
+                    }
+
+                    CButton {
+                        text: "ثبت قد"
+                        width: parent.width
+                        height: 32
+                        enabled: heightInput.text.length > 0
+                        bgColor: "#4caf50"
+                        bgPressed: "#43a047"
+
+                        onClicked: {
+                            let value = parseFloat(heightInput.text)
+                            if (isNaN(value) || value < 0.1 || value > 3) {
+                                heightStatus.text = "مقدار باید بین 0.5 تا 2.5 باشد"
+                                heightStatus.color = "#cc0000"
+                                return
+                            }
+                            heightStatus.text = "در حال ثبت..."
+                            heightStatus.color = "#cc8800"
+                            setHeight(value)
+                        }
+                    }
+
+                    Text {
+                        id: heightStatus
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 11
+                        color: "gray"
+                        text: ""
                     }
                 }
 
-                Text {
-                    id: weightStatus
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    font.pixelSize: 11
-                    color: "gray"
-                    text: ""
+                Rectangle { width: parent.width - 20; height: 1; color: "#cccccc" }
+
+                // ===== وزن =====
+                Column {
+                    width: parent.width - 20
+                    spacing: 6
+
+                    Text {
+                        text: "وزن (کیلوگرم)"
+                        font.pixelSize: 13
+                        color: "#444444"
+                    }
+
+                    TextField {
+                        id: weightInput
+                        width: parent.width
+                        height: 32
+                        placeholderText: "مثال: 70.5"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+
+                        validator: DoubleValidator {
+                            bottom: 0.1
+                            top: 300.0
+                            decimals: 2
+                        }
+
+                        background: Rectangle {
+                            color: "white"
+                            border.color: "#aaaaaa"
+                            border.width: 1
+                            radius: 3
+                        }
+                    }
+
+                    CButton {
+                        text: "ثبت وزن"
+                        width: parent.width
+                        height: 32
+                        enabled: weightInput.text.length > 0
+                        bgColor: "#4caf50"
+                        bgPressed: "#43a047"
+
+                        onClicked: {
+                            let value = parseFloat(weightInput.text)
+                            if (isNaN(value) || value < 0.1 || value > 300.0) {
+                                weightStatus.text = "مقدار باید بین 20 تا 300 باشد"
+                                weightStatus.color = "#cc0000"
+                                return
+                            }
+                            weightStatus.text = "در حال ثبت..."
+                            weightStatus.color = "#cc8800"
+                            setWeight(value)
+                        }
+                    }
+
+                    Text {
+                        id: weightStatus
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 11
+                        color: "gray"
+                        text: ""
+                    }
                 }
-            }
 
-            // خط جدا کننده
-            Rectangle {
-                width: parent.width
-                height: 1
-                color: "#cccccc"
-            }
+                Rectangle { width: parent.width - 20; height: 1; color: "#cccccc" }
 
-            // دکمه بروزرسانی
-            CButton {
-                text: "بروزرسانی نمودار"
-                btnWidth: parent.width
-                btnHeight: 32
-                bgColor: "#757575"
-                bgPressed: "#616161"
-                onClicked: updateSignal()
+                // ===== 🩸 فشار خون (بخش جدید) =====
+                Column {
+                    width: parent.width - 20
+                    spacing: 6
+
+                    Text {
+                        text: "فشار خون"
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: "#cc0000"
+                    }
+
+                    // Systolic
+                    Text {
+                        text: "سیستولیک (mmHg)"
+                        font.pixelSize: 12
+                        color: "#444444"
+                    }
+
+                    TextField {
+                        id: systolicInput
+                        width: parent.width
+                        height: 32
+                        placeholderText: "مثال: 120"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+
+                        validator: DoubleValidator {
+                            bottom: 80
+                            top: 200
+                            decimals: 1
+                        }
+
+                        background: Rectangle {
+                            color: "white"
+                            border.color: "#aaaaaa"
+                            border.width: 1
+                            radius: 3
+                        }
+                    }
+
+                    // Diastolic
+                    Text {
+                        text: "دیاستولیک (mmHg)"
+                        font.pixelSize: 12
+                        color: "#444444"
+                    }
+
+                    TextField {
+                        id: diastolicInput
+                        width: parent.width
+                        height: 32
+                        placeholderText: "مثال: 80"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+
+                        validator: DoubleValidator {
+                            bottom: 40
+                            top: 130
+                            decimals: 1
+                        }
+
+                        background: Rectangle {
+                            color: "white"
+                            border.color: "#aaaaaa"
+                            border.width: 1
+                            radius: 3
+                        }
+                    }
+
+                    CButton {
+                        text: "ثبت فشار خون"
+                        width: parent.width
+                        height: 32
+                        enabled: systolicInput.text.length > 0 && diastolicInput.text.length > 0
+                        bgColor: "#f44336"
+                        bgPressed: "#d32f2f"
+
+                        onClicked: {
+                            let sys = parseFloat(systolicInput.text)
+                            let dia = parseFloat(diastolicInput.text)
+
+                            // اعتبارسنجی محدوده
+                            if (isNaN(sys) || sys < 80 || sys > 200) {
+                                bpStatus.text = "سیستولیک باید بین 80 تا 200 باشد"
+                                bpStatus.color = "#cc0000"
+                                return
+                            }
+                            if (isNaN(dia) || dia < 40 || dia > 130) {
+                                bpStatus.text = "دیاستولیک باید بین 40 تا 130 باشد"
+                                bpStatus.color = "#cc0000"
+                                return
+                            }
+
+                            // اعتبارسنجی رابطه
+                            if (sys <= dia) {
+                                bpStatus.text = "سیستولیک باید از دیاستولیک بیشتر باشد"
+                                bpStatus.color = "#cc0000"
+                                return
+                            }
+
+                            bpStatus.text = "در حال ثبت..."
+                            bpStatus.color = "#cc8800"
+                            setBloodPressure(sys, dia)
+                        }
+                    }
+
+                    Text {
+                        id: bpStatus
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 11
+                        color: "gray"
+                        text: ""
+                    }
+                }
+
+                Rectangle { width: parent.width - 20; height: 1; color: "#cccccc" }
+
+                // دکمه بروزرسانی
+                CButton {
+                    text: "بروزرسانی نمودار"
+                    btnWidth: parent.width - 20
+                    btnHeight: 32
+                    bgColor: "#757575"
+                    bgPressed: "#616161"
+                    onClicked: updateSignal()
+                }
             }
         }
     }
@@ -433,7 +577,7 @@ Item {
         width: 100
         height: 40
 
-        x: (parent.width / 2) - 110
+        x: (parent.width / 2) - 150
         y: 10
 
 
@@ -449,7 +593,7 @@ Item {
         width: 100
         height: 40
 
-        x: (parent.width / 2) + 10
+        x: (parent.width / 2) - 40
         y: 10
 
 
@@ -458,10 +602,28 @@ Item {
         }
     }
 
+    // ✅ دکمه Toggle فشار خون
+    CButton{
+        id: sBtn3
+        text: "فشار خون"
+        width: 110
+        height: 40
+        x: (parent.width / 2) + 70  // کنار دکمه وزن
+        y: 10
+        bgColor: "#d32f2f"
+        bgPressed: "#b71c1c"
+
+        onClicked: {
+            spLine3.visible = !spLine3.visible
+            spLine4.visible = !spLine4.visible
+        }
+    }
+
     Component.onCompleted: {
         updateSignal.connect(myBackend.onUpdateRequest)
         setHeight.connect(myBackend.writeHeight)
         setWeight.connect(myBackend.writeWeight)
+        setBloodPressure.connect(myBackend.writeBloodPressure)
     }
 
     Connections{
@@ -512,87 +674,94 @@ Item {
             }
         }
 
-        function onNewDataRead(hList, wList) {
-            console.log("📊 داده‌های دریافتی - قد:", hList.length, "وزن:", wList.length)
+        // ✅ سیگنال جدید: نتیجه ثبت فشار خون
+        function onBloodPressureWritten(success, message) {
+                if (success) {
+                    bpStatus.text = "✅ فشار خون با موفقیت ثبت شد"
+                    bpStatus.color = "green"
+                    systolicInput.text = ""
+                    diastolicInput.text = ""
+
+                    Qt.callLater(function() {
+                        updateSignal()
+                    })
+                } else {
+                    bpStatus.text = "❌ خطا: " + message
+                    bpStatus.color = "red"
+                }
+            }
+
+        function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList) {
+            console.log("📊 داده‌های دریافتی - قد:", hList.length, "وزن:", wList.length,
+                        "فشار سیستولیک:", bpSystolicList.length, "فشار دیاستولیک:", bpDiastolicList.length)
 
             spLine1.clear()
             spLine2.clear()
+            spLine3.clear()  // ✅ اضافه
+            spLine4.clear()  // ✅ اضافه
 
-            // بررسی خالی بودن لیست‌ها
-            if (hList.length === 0 && wList.length === 0) {
+            // بررسی خالی بودن
+            if (hList.length === 0 && wList.length === 0 && bpSystolicList.length === 0) {
                 console.warn("⚠️ هیچ داده‌ای دریافت نشد!")
                 return
             }
 
-            // مقادیر اولیه برای محاسبه min/max
+            // مقادیر اولیه
             let minTime = Number.MAX_VALUE
             let maxTime = Number.MIN_VALUE
             let minHeight = Number.MAX_VALUE
             let maxHeight = Number.MIN_VALUE
             let minWeight = Number.MAX_VALUE
             let maxWeight = Number.MIN_VALUE
+            let minBP = Number.MAX_VALUE      // ✅ اضافه
+            let maxBP = Number.MIN_VALUE      // ✅ اضافه
 
-            // پردازش داده‌های قد
-            for (let hi = 0; hi < hList.length; hi++) {
-                let dateTime = new Date(hList[hi].x)
+            // ... پردازش Height و Weight مثل قبل ...
+
+            // ✅ پردازش Systolic BP
+            for (let si = 0; si < bpSystolicList.length; si++) {
+                let dateTime = new Date(bpSystolicList[si].x)
                 let timestamp = dateTime.getTime()
-                let height = hList[hi].y
+                let systolic = bpSystolicList[si].y
 
-                spLine1.append(timestamp, height)
+                spLine3.append(timestamp, systolic)
 
-                // بروزرسانی min/max
                 minTime = Math.min(minTime, timestamp)
                 maxTime = Math.max(maxTime, timestamp)
-                minHeight = Math.min(minHeight, height)
-                maxHeight = Math.max(maxHeight, height)
+                minBP = Math.min(minBP, systolic)
+                maxBP = Math.max(maxBP, systolic)
             }
 
-            // پردازش داده‌های وزن
-            for (let wi = 0; wi < wList.length; wi++) {
-                let dateTime = new Date(wList[wi].x)
+            // ✅ پردازش Diastolic BP
+            for (let di = 0; di < bpDiastolicList.length; di++) {
+                let dateTime = new Date(bpDiastolicList[di].x)
                 let timestamp = dateTime.getTime()
-                let weight = wList[wi].y
+                let diastolic = bpDiastolicList[di].y
 
-                spLine2.append(timestamp, weight)
+                spLine4.append(timestamp, diastolic)
 
-                // بروزرسانی min/max
                 minTime = Math.min(minTime, timestamp)
                 maxTime = Math.max(maxTime, timestamp)
-                minWeight = Math.min(minWeight, weight)
-                maxWeight = Math.max(maxWeight, weight)
+                minBP = Math.min(minBP, diastolic)
+                maxBP = Math.max(maxBP, diastolic)
             }
 
-            // تنظیم محور X با padding
-            if (minTime !== Number.MAX_VALUE && maxTime !== Number.MIN_VALUE) {
-                let timeRange = maxTime - minTime
-                let timePadding = Math.max(timeRange * 0.05, 1000) // حداقل 1 ثانیه padding
+            // ... تنظیم axisX, axisY1, axisY2 مثل قبل ...
 
-                axisX.min = new Date(minTime - timePadding)
-                axisX.max = new Date(maxTime + timePadding)
-            }
+            // ✅ تنظیم محور Y3 (فشار خون)
+            if (bpSystolicList.length > 0 || bpDiastolicList.length > 0) {
+                let bpRange = maxBP - minBP
+                let bpPadding = Math.max(bpRange * 0.15, 10)  // حداقل 10 mmHg padding
 
-            // تنظیم محور Y1 (قد) با padding
-            if (hList.length > 0 && minHeight !== Number.MAX_VALUE) {
-                let heightRange = maxHeight - minHeight
-                let heightPadding = Math.max(heightRange * 0.1, 0.5) // حداقل 0.5 واحد padding
-
-                axisY1.min = minHeight - heightPadding
-                axisY1.max = maxHeight + heightPadding
-            }
-
-            // تنظیم محور Y2 (وزن) با padding
-            if (wList.length > 0 && minWeight !== Number.MAX_VALUE) {
-                let weightRange = maxWeight - minWeight
-                let weightPadding = Math.max(weightRange * 0.1, 0.5) // حداقل 0.5 واحد padding
-
-                axisY2.min = minWeight - weightPadding
-                axisY2.max = maxWeight + weightPadding
+                axisY3.min = Math.max(60, minBP - bpPadding)   // حداقل 60
+                axisY3.max = Math.min(200, maxBP + bpPadding)  // حداکثر 200
             }
 
             console.log("✅ نمودار بروزرسانی شد:")
             console.log("   زمان:", new Date(minTime).toLocaleString(), "→", new Date(maxTime).toLocaleString())
             console.log("   قد:", minHeight.toFixed(2), "→", maxHeight.toFixed(2))
             console.log("   وزن:", minWeight.toFixed(2), "→", maxWeight.toFixed(2))
+            console.log("   فشار خون:", minBP.toFixed(0), "→", maxBP.toFixed(0), "mmHg")  // ✅ اضافه
         }
 
         function onNewPoint(dataPoint1,dataPoint2){
