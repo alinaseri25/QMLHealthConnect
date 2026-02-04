@@ -1,8 +1,7 @@
 package org.verya.QMLHealthConnect
 
 import android.content.Intent
-//import android.os.Bundle
-//import org.qtproject.qt.android.bindings.QtActivity
+import android.util.Log
 import android.os.Bundle
 import android.view.View
 import android.view.WindowInsets
@@ -14,7 +13,8 @@ class MainActivity : QtActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        HealthBridge.init(this)
+        val initResult = HealthBridge.init(this)
+        Log.d("MainActivity", "HC Init: $initResult")
         hideSystemUI()
     }
 

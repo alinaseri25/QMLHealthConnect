@@ -164,13 +164,40 @@ void Backend::permissionRequest()
         return;
     }
 
-    // Init
-    QJniObject::callStaticMethod<void>(
+    // ✅ Init با دریافت نتیجه
+    qDebug() << "🚀 Initializing Health Connect...";
+
+    QJniObject initResult = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "init",
-        "(Landroid/content/Context;)V",
+        "(Landroid/content/Context;)Ljava/lang/String;",  // ← حالا String
         activity.object()
         );
+
+    QString status = initResult.toString();
+    qDebug() << "📋 Init status:" << status;
+
+    // ✅ بررسی وضعیت
+    if (status == "HC_NOT_INSTALLED") {
+        qDebug() << "❌ Health Connect is not installed!";
+        qDebug() << "💡 Please install it from Play Store";
+        return;
+    }
+
+    if (status == "ANDROID_TOO_OLD") {
+        qDebug() << "❌ Android version too old (need 9+)";
+        return;
+    }
+
+    if (status == "HC_UPDATE_REQUIRED") {
+        qDebug() << "⚠️ Health Connect needs update";
+        // ادامه می‌دهیم چون شاید کار کند
+    }
+
+    if (!status.startsWith("INIT_OK") && !status.startsWith("HC_UPDATE_REQUIRED")) {
+        qDebug() << "❌ Initialization failed:" << status;
+        return;
+    }
 
     qDebug() << ("=== 🔐 Health Connect Test ===\n");
 
@@ -205,18 +232,39 @@ void Backend::readData()
     wList.clear();
     bpSystolicList.clear();
     bpDiastolicList.clear();
+
 #ifdef Q_OS_ANDROID
     QJniObject context = QNativeInterface::QAndroidApplication::context();
     if (!context.isValid()) {
-        qDebug() << ("Context is invalid!");
+        qDebug() << "❌ Context invalid";
         return;
     }
+
+    // ✅ Step 1: Check permissions
+    QJniObject permResult = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "checkPermissions",
+        "()Ljava/lang/String;"
+        );
+
+    QString permStatus = permResult.toString();
+    qDebug() << "🔐" << permStatus;
+
+    // ✅ Step 2: If not granted → request & EXIT
+    if (!permStatus.startsWith("ALL_GRANTED")) {
+        qDebug() << "⚠️ Requesting permissions...";
+        permissionRequest();
+        qDebug() << "💡 Grant permissions and press Read again";
+        return;  // ← این خط کلیدی است
+    }
+
+    qDebug() << "✅ Reading data...";
+
+    // ✅ Step 3: Safe read
     QString status;
     QJniObject result;
 
-    permissionRequest();
-
-    //Height
+    // Height
     result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "readHeight",
@@ -224,22 +272,26 @@ void Backend::readData()
         );
 
     status = result.toString();
-    QJsonDocument *document = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
-    QJsonArray arr = document->array();
-    for(uint32_t i = 0 ; i < arr.size() ; i++)
-    {
-        QPointF point;
-        QJsonObject obj = arr.at(i).toObject();
-        QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        point.setX(dateTime.toMSecsSinceEpoch());
-        point.setY(obj["height_m"].toDouble());
-        hList.append(point);
-        //ui->txtData->append(QString("قد : %1 و زمان ثبت : %2").arg(obj["height_m"].toDouble()).arg(dateTime.toString(QString("yyyy/mm/dd hh:MM:ss"))));
-        //series1->append(dateTime.toSecsSinceEpoch(),(obj["height_m"].toDouble() * 100));
+    if (status == "SECURITY_ERROR") {
+        qDebug() << "❌ Security error (height)";
+        return;
     }
-    delete document;
 
-    //Weight
+    if (!status.startsWith("ERROR") && status != "NO_HEIGHT_DATA") {
+        QJsonDocument* document = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
+        QJsonArray arr = document->array();
+        for(uint32_t i = 0; i < arr.size(); i++) {
+            QPointF point;
+            QJsonObject obj = arr.at(i).toObject();
+            QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+            point.setX(dateTime.toMSecsSinceEpoch());
+            point.setY(obj["height_m"].toDouble());
+            hList.append(point);
+        }
+        delete document;
+    }
+
+    // Weight
     result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "readWeight",
@@ -247,22 +299,26 @@ void Backend::readData()
         );
 
     status = result.toString();
-    document = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
-    arr = document->array();
-    for(uint32_t i = 0 ; i < arr.size() ; i++)
-    {
-        QPointF point;
-        QJsonObject obj = arr.at(i).toObject();
-        QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        point.setX(dateTime.toMSecsSinceEpoch());
-        point.setY(obj["weight_kg"].toDouble());
-        wList.append(point);
-        //ui->txtData->append(QString("وزن : %1 و زمان ثبت : %2").arg(obj["weight_kg"].toDouble()).arg(dateTime.toString(QString("yyyy/mm/dd hh:MM:ss"))));
-        //series2->append(dateTime.toSecsSinceEpoch(),obj["weight_kg"].toDouble());
+    if (status == "SECURITY_ERROR") {
+        qDebug() << "❌ Security error (weight)";
+        return;
     }
-    delete document;
 
-    // ✅ خواندن Blood Pressure
+    if (!status.startsWith("ERROR") && status != "NO_WEIGHT_DATA") {
+        QJsonDocument* document = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
+        QJsonArray arr = document->array();
+        for(uint32_t i = 0; i < arr.size(); i++) {
+            QPointF point;
+            QJsonObject obj = arr.at(i).toObject();
+            QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+            point.setX(dateTime.toMSecsSinceEpoch());
+            point.setY(obj["weight_kg"].toDouble());
+            wList.append(point);
+        }
+        delete document;
+    }
+
+    // Blood Pressure
     result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "readBloodPressure",
@@ -270,8 +326,11 @@ void Backend::readData()
         );
 
     status = result.toString();
+    if (status == "SECURITY_ERROR") {
+        qDebug() << "❌ Security error (BP)";
+        return;
+    }
 
-    // ✅ بررسی اینکه داده وجود داره یا نه
     if (!status.contains("NO_BP_DATA") && !status.contains("ERROR")) {
         QJsonDocument* bpDocument = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
         QJsonArray bpArr = bpDocument->array();
@@ -280,29 +339,21 @@ void Backend::readData()
             QJsonObject obj = bpArr.at(i).toObject();
             QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
 
-            // ✅ سیستولیک
             QPointF systolicPoint;
             systolicPoint.setX(dateTime.toMSecsSinceEpoch());
             systolicPoint.setY(obj["systolic_mmhg"].toDouble());
             bpSystolicList.append(systolicPoint);
 
-            // ✅ دیاستولیک
             QPointF diastolicPoint;
             diastolicPoint.setX(dateTime.toMSecsSinceEpoch());
             diastolicPoint.setY(obj["diastolic_mmhg"].toDouble());
             bpDiastolicList.append(diastolicPoint);
-
-            qDebug() << "BP Read: " << obj["systolic_mmhg"].toDouble()
-                     << "/" << obj["diastolic_mmhg"].toDouble()
-                     << " at " << dateTime.toString();
         }
 
-        delete bpDocument; // ✅ حل مشکل Memory Leak
+        delete bpDocument;
     }
 
-    // ✅ تغییر emit برای اضافه کردن BP
     emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList);
-
 
 #else
     qDebug() << "Not Android";

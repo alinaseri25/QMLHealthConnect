@@ -39,28 +39,85 @@ object HealthBridge {
     )
 
     @JvmStatic
-    fun init(context: Context) {
+    fun isHealthConnectInstalled(): Boolean {
+        val context = appContext ?: return false
+        val packageName = if (android.os.Build.VERSION.SDK_INT >= 34) {
+            "com.android.healthconnect.controller"
+        } else {
+            "com.google.android.apps.healthdata"
+        }
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @JvmStatic
+    fun getHealthConnectVersion(): String {
+        val context = appContext ?: return "CONTEXT_NULL"
+        val packageName = if (android.os.Build.VERSION.SDK_INT >= 34) {
+            "com.android.healthconnect.controller"
+        } else {
+            "com.google.android.apps.healthdata"
+        }
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0).versionName ?: "UNKNOWN"
+        } catch (e: Exception) {
+            "NOT_INSTALLED"
+        }
+    }
+
+    @JvmStatic
+    fun getHealthConnectPackageName(): String? {
+        val context = appContext ?: return null
+        val pm = context.packageManager
+
+        val candidates = listOf(
+            "com.android.healthconnect.controller", // Android 14+
+            "com.google.android.apps.healthdata"    // Android 9–13
+        )
+
+        for (pkg in candidates) {
+            try {
+                pm.getPackageInfo(pkg, 0)
+                return pkg
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    @JvmStatic
+    fun init(context: Context): String {
         appContext = context.applicationContext
 
-        try {
-            val availability = HealthConnectClient.getSdkStatus(appContext!!)
+        if (android.os.Build.VERSION.SDK_INT < 28) {
+            Log.e(TAG, "Android too old")
+            return "ANDROID_TOO_OLD"
+        }
 
-            when (availability) {
-                HealthConnectClient.SDK_UNAVAILABLE -> {
-                    Log.e(TAG, "Health Connect is not available")
-                    return
-                }
-                HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> {
-                    Log.w(TAG, "Health Connect needs update")
-                }
+        if (android.os.Build.VERSION.SDK_INT < 34) {
+            if (!isHealthConnectInstalled()) {
+                Log.e(TAG, "HC not installed")
+                return "HC_NOT_INSTALLED"
             }
+        }
 
-            healthConnectClient = HealthConnectClient.getOrCreate(appContext!!)
-            Log.d(TAG, "✅ Health Connect initialized")
-
+        return try {
+            when (HealthConnectClient.getSdkStatus(appContext!!)) {
+                HealthConnectClient.SDK_UNAVAILABLE -> "HC_UNAVAILABLE"
+                HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "HC_NEEDS_UPDATE"
+                HealthConnectClient.SDK_AVAILABLE -> {
+                    healthConnectClient = HealthConnectClient.getOrCreate(appContext!!)
+                    Log.d(TAG, "✅ Initialized")
+                    "INIT_OK"
+                }
+                else -> "HC_UNKNOWN"
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to initialize", e)
-            healthConnectClient = null
+            Log.e(TAG, "Init error", e)
+            "INIT_ERROR"
         }
     }
 
@@ -123,11 +180,15 @@ object HealthBridge {
     }
 
     /**
-     * ✅ درخواست Permission با استفاده از Intent مستقیم
+     * ✅ درخواست Permission با استفاده از Intent مستقیم (FIXED)
      */
     @JvmStatic
     fun requestPermissions(activity: Activity): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
+
+        // ✅ بررسی package name
+        val hcPackage = getHealthConnectPackageName()
+            ?: return "HC_NOT_INSTALLED"
 
         return try {
             scope.launch(Dispatchers.IO) {
@@ -145,19 +206,39 @@ object HealthBridge {
                     }
 
                     Log.d(TAG, "📋 Requesting ${toRequest.size} permissions...")
+                    Log.d(TAG, "🎯 Using HC package: $hcPackage")
 
-                    // ✅ استفاده از Intent مستقیم
-                    val packageName = "com.google.android.apps.healthdata"
+                    // ✅ ساخت Intent درست (بدون تعریف دوباره)
                     val intent = Intent("androidx.health.ACTION_REQUEST_PERMISSIONS").apply {
-                        setPackage(packageName)
+                        setPackage(hcPackage)
                         putExtra(
                             "androidx.health.EXTRA_PERMISSIONS",
                             toRequest.toTypedArray()
                         )
                     }
 
+                    // ✅ بررسی اینکه intent قابل حل است
+                    val resolveInfo = activity.packageManager.resolveActivity(
+                        intent,
+                        0
+                    )
+
+                    if (resolveInfo == null) {
+                        Log.e(TAG, "❌ Permission intent cannot be resolved!")
+                        Log.e(TAG, "📦 HC Package: $hcPackage")
+                        Log.e(TAG, "🔍 Try installing HC from Play Store")
+
+                        withContext(Dispatchers.Main) {
+                            permissionCallback?.invoke(false)
+                            permissionCallback = null
+                        }
+                        return@launch
+                    }
+
+                    // ✅ اجرای intent
                     withContext(Dispatchers.Main) {
                         activity.startActivityForResult(intent, REQUEST_CODE_PERMISSIONS)
+                        Log.d(TAG, "✅ Permission dialog launched!")
                     }
 
                 } catch (e: Exception) {
@@ -198,7 +279,7 @@ object HealthBridge {
             Log.d(TAG, "📏 Reading height data...")
 
             val end = Instant.now()
-            val start = Instant.parse("2000-01-01T00:00:00.000Z")//end.minus(365, ChronoUnit.DAYS)
+            val start = Instant.parse("2000-01-01T00:00:00.000Z")
 
             Log.d(TAG, "⏰ Time range: $start to $end")
 
@@ -251,7 +332,7 @@ object HealthBridge {
             Log.d(TAG, "⚖️ Reading weight data...")
 
             val end = Instant.now()
-            val start = Instant.parse("2000-01-01T00:00:00.000Z")//end.minus(365, ChronoUnit.DAYS)
+            val start = Instant.parse("2000-01-01T00:00:00.000Z")
 
             Log.d(TAG, "⏰ Time range: $start to $end")
 
@@ -301,7 +382,6 @@ object HealthBridge {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            // اعتبارسنجی مقدار
             if (heightMeters < 0.1 || heightMeters > 3) {
                 return "ERROR: Invalid height value ($heightMeters m). Must be between 0.1 and 3 meters."
             }
@@ -338,7 +418,6 @@ object HealthBridge {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            // اعتبارسنجی مقدار
             if (weightKg < 0.1 || weightKg > 300.0) {
                 return "ERROR: Invalid weight value ($weightKg kg). Must be between 0.1 and 300 kg."
             }
@@ -408,8 +487,6 @@ object HealthBridge {
                     put("systolic_mmhg", systolic)
                     put("diastolic_mmhg", diastolic)
                     put("time", record.time.toString())
-
-                    // ✅ اطلاعات اضافی (اختیاری)
                     put("body_position", record.bodyPosition ?: 0)
                     put("measurement_location", record.measurementLocation ?: 0)
                 }
@@ -429,15 +506,12 @@ object HealthBridge {
 
     /**
      * ✅ نوشتن فشار خون
-     * @param systolicMmHg فشار سیستولیک (80-200)
-     * @param diastolicMmHg فشار دیاستولیک (40-130)
      */
     @JvmStatic
     fun writeBloodPressure(systolicMmHg: Double, diastolicMmHg: Double): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            // ✅ اعتبارسنجی دقیق
             if (systolicMmHg < 80 || systolicMmHg > 200) {
                 return "ERROR: Invalid systolic value ($systolicMmHg). Must be 80-200 mmHg."
             }
@@ -446,7 +520,6 @@ object HealthBridge {
                 return "ERROR: Invalid diastolic value ($diastolicMmHg). Must be 40-130 mmHg."
             }
 
-            // ✅ بررسی منطقی بودن: سیستولیک باید بزرگتر از دیاستولیک باشه
             if (systolicMmHg <= diastolicMmHg) {
                 return "ERROR: Systolic must be greater than diastolic."
             }
@@ -458,7 +531,6 @@ object HealthBridge {
                 diastolic = androidx.health.connect.client.units.Pressure.millimetersOfMercury(diastolicMmHg),
                 time = Instant.now(),
                 zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now()),
-                // ✅ می‌تونی body position هم اضافه کنی (اختیاری)
                 bodyPosition = BloodPressureRecord.BODY_POSITION_STANDING_UP,
                 measurementLocation = BloodPressureRecord.MEASUREMENT_LOCATION_LEFT_WRIST
             )
@@ -476,6 +548,34 @@ object HealthBridge {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing blood pressure", e)
             "ERROR: ${e.message}"
+        }
+    }
+
+    @JvmStatic
+    fun openHealthConnectInStore(activity: Activity): String {
+        val packageName = if (android.os.Build.VERSION.SDK_INT >= 34) {
+            "com.android.healthconnect.controller"
+        } else {
+            "com.google.android.apps.healthdata"
+        }
+
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = android.net.Uri.parse("market://details?id=$packageName")
+                setPackage("com.android.vending")
+            }
+            activity.startActivity(intent)
+            "STORE_OPENED"
+        } catch (e: Exception) {
+            try {
+                val webIntent = Intent(Intent.ACTION_VIEW).apply {
+                    data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                }
+                activity.startActivity(webIntent)
+                "BROWSER_OPENED"
+            } catch (e2: Exception) {
+                "OPEN_FAILED"
+            }
         }
     }
 }
