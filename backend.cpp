@@ -8,7 +8,6 @@ Backend::Backend(QObject *parent)
 
 void Backend::onUpdateRequest()
 {
-    qDebug() << QString("inja ooooooooooomad");
     readData();
 }
 
@@ -30,8 +29,6 @@ void Backend::writeHeight(double heightMeters)
         return;
     }
 
-    qDebug() << "📝 Writing height: " << heightMeters << " meters";
-
     // فراخوانی متد Kotlin برای نوشتن قد
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
@@ -41,7 +38,6 @@ void Backend::writeHeight(double heightMeters)
         );
 
     QString status = result.toString();
-    qDebug() << "✅ Write height result: " << status;
 
     // بررسی موفقیت‌آمیز بودن
     bool success = !status.contains("ERROR") && !status.contains("NULL");
@@ -72,8 +68,6 @@ void Backend::writeWeight(double weightKg)
         return;
     }
 
-    qDebug() << "📝 Writing weight: " << weightKg << " kg";
-
     // فراخوانی متد Kotlin برای نوشتن وزن
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
@@ -83,7 +77,6 @@ void Backend::writeWeight(double weightKg)
         );
 
     QString status = result.toString();
-    qDebug() << "✅ Write weight result: " << status;
 
     // بررسی موفقیت‌آمیز بودن
     bool success = !status.contains("ERROR") && !status.contains("NULL");
@@ -129,8 +122,6 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
         return;
     }
 
-    qDebug() << "📝 Writing BP: " << systolicMmHg << "/" << diastolicMmHg << " mmHg";
-
     // ✅ فراخوانی متد Kotlin
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
@@ -141,7 +132,6 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
         );
 
     QString status = result.toString();
-    qDebug() << "✅ Write BP result: " << status;
 
     bool success = !status.contains("ERROR") && !status.contains("NULL");
     emit bloodPressureWritten(success, status);
@@ -175,7 +165,6 @@ void Backend::permissionRequest()
         );
 
     QString status = initResult.toString();
-    qDebug() << "📋 Init status:" << status;
 
     // ✅ بررسی وضعیت
     if (status == "HC_NOT_INSTALLED") {
@@ -198,8 +187,6 @@ void Backend::permissionRequest()
         qDebug() << "❌ Initialization failed:" << status;
         return;
     }
-
-    qDebug() << ("=== 🔐 Health Connect Test ===\n");
 
     // Check permissions
     QJniObject result = QJniObject::callStaticObjectMethod(

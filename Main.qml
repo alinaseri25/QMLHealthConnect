@@ -66,7 +66,7 @@ Item {
 
         // ===== سری‌های داده =====
 
-        SplineSeries {
+        LineSeries {
             id: spLine1
             name: "قد"
             useOpenGL: true
@@ -74,7 +74,7 @@ Item {
             axisY: axisY1
         }
 
-        SplineSeries {
+        LineSeries {
             id: spLine2
             name: "وزن"
             useOpenGL: true
@@ -164,183 +164,6 @@ Item {
                 onDoubleClicked: {
                     axisX.min = new Date(Date.now() - 10000)
                     axisX.max = new Date(Date.now())
-                }
-            }
-        }
-    }
-
-    // 2️⃣ محور Y1 (چپ نمودار - قد)
-    Rectangle {
-        id: y1AxisZone
-        x: chartView.x
-        y: chartView.y + chartView.plotArea.y
-        width: chartView.plotArea.x
-        height: chartView.plotArea.height / 3
-        color: "transparent"
-        z: 20
-
-        PinchArea {
-            anchors.fill: parent
-            property real initialY1Range
-
-            onPinchStarted: {
-                initialY1Range = axisY1.max - axisY1.min
-            }
-
-            onPinchUpdated: (pinch) => {
-                let scale = 1.0 / pinch.scale
-                let y1Center = (axisY1.max + axisY1.min) / 2
-                axisY1.min = y1Center - (initialY1Range * scale) / 2
-                axisY1.max = y1Center + (initialY1Range * scale) / 2
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.SizeVerCursor
-
-                onWheel: (wheel) => {
-                    let zoomFactor = wheel.angleDelta.y > 0 ? 0.9 : 1.1
-                    let y1Range = axisY1.max - axisY1.min
-                    let y1Center = (axisY1.max + axisY1.min) / 2
-                    axisY1.min = y1Center - (y1Range * zoomFactor) / 2
-                    axisY1.max = y1Center + (y1Range * zoomFactor) / 2
-                }
-
-                property real dragStartY: 0
-                onPressed: (mouse) => { dragStartY = mouse.y }
-                onPositionChanged: (mouse) => {
-                    if (pressed) {
-                        let dy = mouse.y - dragStartY
-                        let y1Range = axisY1.max - axisY1.min
-                        let y1Shift = -(dy / height) * y1Range
-                        axisY1.min += y1Shift
-                        axisY1.max += y1Shift
-                        dragStartY = mouse.y
-                    }
-                }
-
-                onDoubleClicked: {
-                    axisY1.min = -10
-                    axisY1.max = 10
-                }
-            }
-        }
-    }
-
-    // 3️⃣ محور Y2 (راست نمودار - وزن)
-    Rectangle {
-        id: y2AxisZone
-        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width
-        y: chartView.y + chartView.plotArea.y
-        width: 70
-        height: chartView.plotArea.height / 3
-        color: "transparent"
-        z: 20
-
-        PinchArea {
-            anchors.fill: parent
-            property real initialY2Range
-
-            onPinchStarted: {
-                initialY2Range = axisY2.max - axisY2.min
-            }
-
-            onPinchUpdated: (pinch) => {
-                let scale = 1.0 / pinch.scale
-                let y2Center = (axisY2.max + axisY2.min) / 2
-                axisY2.min = y2Center - (initialY2Range * scale) / 2
-                axisY2.max = y2Center + (initialY2Range * scale) / 2
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.SizeVerCursor
-
-                onWheel: (wheel) => {
-                    let zoomFactor = wheel.angleDelta.y > 0 ? 0.9 : 1.1
-                    let y2Range = axisY2.max - axisY2.min
-                    let y2Center = (axisY2.max + axisY2.min) / 2
-                    axisY2.min = y2Center - (y2Range * zoomFactor) / 2
-                    axisY2.max = y2Center + (y2Range * zoomFactor) / 2
-                }
-
-                property real dragStartY: 0
-                onPressed: (mouse) => { dragStartY = mouse.y }
-                onPositionChanged: (mouse) => {
-                    if (pressed) {
-                        let dy = mouse.y - dragStartY
-                        let y2Range = axisY2.max - axisY2.min
-                        let y2Shift = -(dy / height) * y2Range
-                        axisY2.min += y2Shift
-                        axisY2.max += y2Shift
-                        dragStartY = mouse.y
-                    }
-                }
-
-                onDoubleClicked: {
-                    axisY2.min = 40
-                    axisY2.max = 50
-                }
-            }
-        }
-    }
-
-    // 4️⃣ محور Y3 (راست نمودار - فشار خون)
-    Rectangle {
-        id: y3AxisZone
-        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width
-        y: chartView.y + chartView.plotArea.y + (chartView.plotArea.height / 3)
-        width: 70
-        height: chartView.plotArea.height / 3
-        color: "transparent"
-        z: 20
-
-        PinchArea {
-            anchors.fill: parent
-            property real initialY3Range
-
-            onPinchStarted: {
-                initialY3Range = axisY3.max - axisY3.min
-            }
-
-            onPinchUpdated: (pinch) => {
-                let scale = 1.0 / pinch.scale
-                let y3Center = (axisY3.max + axisY3.min) / 2
-                axisY3.min = y3Center - (initialY3Range * scale) / 2
-                axisY3.max = y3Center + (initialY3Range * scale) / 2
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.SizeVerCursor
-
-                onWheel: (wheel) => {
-                    let zoomFactor = wheel.angleDelta.y > 0 ? 0.9 : 1.1
-                    let y3Range = axisY3.max - axisY3.min
-                    let y3Center = (axisY3.max + axisY3.min) / 2
-                    axisY3.min = y3Center - (y3Range * zoomFactor) / 2
-                    axisY3.max = y3Center + (y3Range * zoomFactor) / 2
-                }
-
-                property real dragStartY: 0
-                onPressed: (mouse) => { dragStartY = mouse.y }
-                onPositionChanged: (mouse) => {
-                    if (pressed) {
-                        let dy = mouse.y - dragStartY
-                        let y3Range = axisY3.max - axisY3.min
-                        let y3Shift = -(dy / height) * y3Range
-                        axisY3.min += y3Shift
-                        axisY3.max += y3Shift
-                        dragStartY = mouse.y
-                    }
-                }
-
-                onDoubleClicked: {
-                    axisY3.min = 60
-                    axisY3.max = 200
                 }
             }
         }
@@ -672,8 +495,6 @@ Item {
             spLine3.clear()
             spLine4.clear()
 
-            if (hList.length === 0 && wList.length === 0 && bpList.length === 0) return
-
             let minTime = hList[0].x
             if(wList[0].x << minTime){
                 minTime = wList[0].x
@@ -686,26 +507,36 @@ Item {
             let minW = Number.MAX_VALUE, maxW = Number.MIN_VALUE
             let minBP = Number.MAX_VALUE, maxBP = Number.MIN_VALUE
 
-            for (let i = 0; i < hList.length; i++) {
-                let t = new Date(hList[i].x).getTime()
-                spLine1.append(t, hList[i].y)
-                minH = Math.min(minH, hList[i].y)
-                maxH = Math.max(maxH, hList[i].y)
+            if(hList.length > 0){
+                for (let i = 0; i < hList.length; i++) {
+                    let t = new Date(hList[i].x).getTime()
+                    spLine1.append(t, hList[i].y)
+                    minH = Math.min(minH, hList[i].y)
+                    maxH = Math.max(maxH, hList[i].y)
+                }
+                spLine1.append(Date.now(),hList[hList.length -1])
             }
 
-            for (let i = 0; i < wList.length; i++) {
-                let t = new Date(wList[i].x).getTime()
-                spLine2.append(t, wList[i].y)
-                minW = Math.min(minW, wList[i].y)
-                maxW = Math.max(maxW, wList[i].y)
+            if(wList.length > 0){
+                for (let i = 0; i < wList.length; i++) {
+                    let t = new Date(wList[i].x).getTime()
+                    spLine2.append(t, wList[i].y)
+                    minW = Math.min(minW, wList[i].y)
+                    maxW = Math.max(maxW, wList[i].y)
+                }
+                spLine2.append(Date.now(),wList[wList.length -1])
             }
 
-            for (let i = 0; i < bpSystolicList.length; i++) {
-                let t = new Date(bpSystolicList[i].x).getTime()
-                spLine3.append(t, bpSystolicList[i].y)
-                spLine4.append(t, bpDiastolicList[i].y)
-                minBP = Math.min(minBP, bpDiastolicList[i].y)
-                maxBP = Math.max(maxBP, bpSystolicList[i].y)
+            if(bpSystolicList.length > 0){
+                for (let i = 0; i < bpSystolicList.length; i++) {
+                    let t = new Date(bpSystolicList[i].x).getTime()
+                    spLine3.append(t, bpSystolicList[i].y)
+                    spLine4.append(t, bpDiastolicList[i].y)
+                    minBP = Math.min(minBP, bpDiastolicList[i].y)
+                    maxBP = Math.max(maxBP, bpSystolicList[i].y)
+                }
+                spLine3.append(Date.now(),bpSystolicList[bpSystolicList.length -1])
+                spLine4.append(Date.now(),bpDiastolicList[bpDiastolicList.length -1])
             }
 
             if (minTime !== Number.MAX_VALUE) {
