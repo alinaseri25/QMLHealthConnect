@@ -5,12 +5,15 @@ Rectangle {
     id: root
 
     property bool expanded: true
-    property var themeManager
+
+    // ✅ FIX: استفاده از required برای اطمینان از ارسال themeManager
+    required property var themeManager
 
     // Signals برای ارسال داده
     signal heightSubmitted(double value)
     signal weightSubmitted(double value)
     signal bloodPressureSubmitted(int systolic, int diastolic)
+
     // Properties برای نمایش وضعیت
     property alias heightStatusText: heightStatus.text
     property alias heightStatusColor: heightStatus.color
@@ -22,8 +25,9 @@ Rectangle {
     width: expanded ? 330 : 0
     height: parent.height
 
-    color: themeManager.surfaceColor
-    border.color: themeManager.panelBorderColor
+    // ✅ FIX: اطمینان از استفاده درست از themeManager
+    color: root.themeManager.surfaceColor
+    border.color: root.themeManager.panelBorderColor
     border.width: expanded ? 1 : 0
     clip: true
 
@@ -34,12 +38,16 @@ Rectangle {
         }
     }
 
-    Behavior on color { ColorAnimation { duration: 300 } }
     Behavior on border.color { ColorAnimation { duration: 300 } }
+
     ScrollView {
         anchors.fill: parent
         visible: expanded
         clip: true
+
+        background: Rectangle {
+                color: root.themeManager.cardColor
+            }
 
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -58,7 +66,7 @@ Rectangle {
                     text: "📏 قد (متر)"
                     font.pixelSize: 16
                     font.bold: true
-                    color: themeManager.primaryTextColor
+                    color: root.themeManager.primaryTextColor
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
 
@@ -66,9 +74,10 @@ Rectangle {
                     id: heightInput
                     width: parent.width
                     placeholderText: "مثال: 1.75"
+
                     background: Rectangle {
-                        color: themeManager.inputBackgroundColor
-                        border.color: themeManager.inputBorderColor
+                        color: root.themeManager.inputBackgroundColor
+                        border.color: root.themeManager.inputBorderColor
                         border.width: 1
                         radius: 4
 
@@ -76,7 +85,7 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 300 } }
                     }
 
-                    color: themeManager.primaryTextColor
+                    color: root.themeManager.primaryTextColor
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
 
@@ -84,6 +93,7 @@ Rectangle {
                     text: "ثبت قد"
                     width: parent.width
                     height: 40
+                    themeManager: root.themeManager  // ✅ ارسال theme به دکمه
 
                     onClicked: {
                         let value = parseFloat(heightInput.text)
@@ -114,7 +124,7 @@ Rectangle {
                     text: "⚖️ وزن (کیلوگرم)"
                     font.pixelSize: 16
                     font.bold: true
-                    color: themeManager.primaryTextColor
+                    color: root.themeManager.primaryTextColor
 
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
@@ -125,8 +135,8 @@ Rectangle {
                     placeholderText: "مثال: 70.5"
 
                     background: Rectangle {
-                        color: themeManager.inputBackgroundColor
-                        border.color: themeManager.inputBorderColor
+                        color:  root.themeManager.inputBackgroundColor
+                        border.color: root.themeManager.inputBorderColor
                         border.width: 1
                         radius: 4
 
@@ -134,7 +144,7 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 300 } }
                     }
 
-                    color: themeManager.primaryTextColor
+                    color: root.themeManager.primaryTextColor
 
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
@@ -143,6 +153,7 @@ Rectangle {
                     text: "ثبت وزن"
                     width: parent.width
                     height: 40
+                    themeManager: root.themeManager  // ✅ ارسال theme به دکمه
 
                     onClicked: {
                         let value = parseFloat(weightInput.text)
@@ -173,7 +184,7 @@ Rectangle {
                     text: "💉 فشار خون (mmHg)"
                     font.pixelSize: 16
                     font.bold: true
-                    color: themeManager.primaryTextColor
+                    color: root.themeManager.primaryTextColor
 
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
@@ -188,18 +199,19 @@ Rectangle {
                         placeholderText: "سیستولیک (120)"
 
                         background: Rectangle {
-                            color: themeManager.inputBackgroundColor
-                            border.color: themeManager.inputBorderColor
-                            border.width: 1
+                            color: root.themeManager.inputBackgroundColor
+                            border.color: root.themeManager.inputBorderColor
+                            border.width: 2
                             radius: 4
 
                             Behavior on color { ColorAnimation { duration: 300 } }
                             Behavior on border.color { ColorAnimation { duration: 300 } }
                         }
 
-                        color: themeManager.primaryTextColor
+                        color: root.themeManager.primaryTextColor
 
-                        Behavior on color { ColorAnimation { duration: 300 } }}
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                    }
 
                     TextField {
                         id: diastolicInput
@@ -207,16 +219,16 @@ Rectangle {
                         placeholderText: "دیاستولیک (80)"
 
                         background: Rectangle {
-                            color: themeManager.inputBackgroundColor
-                            border.color: themeManager.inputBorderColor
-                            border.width: 1
+                            color: root.themeManager.inputBackgroundColor
+                            border.color: root.themeManager.inputBorderColor
+                            border.width: 2
                             radius: 4
 
                             Behavior on color { ColorAnimation { duration: 300 } }
                             Behavior on border.color { ColorAnimation { duration: 300 } }
                         }
 
-                        color: themeManager.primaryTextColor
+                        color: root.themeManager.primaryTextColor
 
                         Behavior on color { ColorAnimation { duration: 300 } }
                     }
@@ -226,6 +238,7 @@ Rectangle {
                     text: "ثبت فشار خون"
                     width: parent.width
                     height: 40
+                    themeManager: root.themeManager  // ✅ ارسال theme به دکمه
 
                     onClicked: {
                         let sys = parseInt(systolicInput.text)

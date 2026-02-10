@@ -11,7 +11,7 @@ Rectangle {
         id: appTheme
     }
 
-    color: themeManager.backgroundColor  // ✅ از instance استفاده کنید نه Singleton
+    color: appTheme.backgroundColor  // ✅ از instance استفاده کنید نه Singleton
 
     Behavior on color {
         ColorAnimation { duration: 300 }
@@ -101,6 +101,7 @@ Rectangle {
 
     // ===== دکمه باز/بسته پنل =====
     TogglePanelButton {
+        themeManager: appTheme
         id: togglePanelBtn
         panelExpanded: inputPanel.expanded
         x: parent.width - (inputPanel.width + 100)
@@ -153,7 +154,7 @@ Rectangle {
     ThemeToggle {
         themeManager: appTheme
         anchors.top: parent.top
-        anchors.right: parent.right
+        anchors.left: parent.left
         anchors.margins: 16
         z: 10000  // ✅ z-index بالاتر
     }

@@ -15,14 +15,14 @@ Row {
     signal updateRequested()
 
     CButton {
-        themeManager: themeManager
+        themeManager: root.themeManager
         text: "قد"
         width: 70
         height: 35
         onClicked: heightSeries.visible = !heightSeries.visible}
 
     CButton {
-        themeManager: themeManager
+        themeManager: root.themeManager
         text: "وزن"
         width: 70
         height: 35
@@ -30,7 +30,7 @@ Row {
     }
 
     CButton {
-        themeManager: themeManager
+        themeManager: root.themeManager
         text: "BP (S)"
         width: 70
         height: 35
@@ -38,7 +38,7 @@ Row {
     }
 
     CButton {
-        themeManager: themeManager
+        themeManager: root.themeManager
         text: "BP (D)"
         width: 70
         height: 35
@@ -46,9 +46,9 @@ Row {
     }
 
     CButton {
-        themeManager: themeManager
+        themeManager: root.themeManager
         text: "بروزرسانی نمودار"
-        width: 100
+        width: 120
         height: 35
         onClicked: updateRequested()
     }
