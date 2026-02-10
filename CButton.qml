@@ -1,37 +1,37 @@
 import QtQuick
 import QtQuick.Controls
 
-Rectangle {
-    id: root
+Button {
+    id: control
 
-    // رنگ‌ها و propertyهای قابل تنظیم
-    property color bgColor: "#4caf50"
-    property color bgPressed: "#43a047"
-    property string text: "Button"
-    property color textColor: "white"
-    property font userFont
-    property int btnWidth: 40
-    property int btnHeight: 25
-    property int btnRadius: 4
+    // ✅ دسترسی به themeManager از parent
+    property var themeManager
 
-    width: btnWidth
-    height: btnHeight
-    radius: btnRadius
-    color: bgColor
+    property color bgColor: themeManager.accentColor
+    property color bgPressed: themeManager.accentPressed
+    property color textColor: themeManager.primaryTextColor
 
-    Text {
-        anchors.centerIn: parent
-        text: root.text
-        color: root.textColor
-        font: root.userFont
+    background: Rectangle {
+        implicitWidth: 100
+        implicitHeight: 40
+        color: control.pressed ? control.bgPressed : control.bgColor
+        radius: 8
+
+        Behavior on color {
+            ColorAnimation { duration: 150 }
+        }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        onPressed: root.color = bgPressed
-        onReleased: root.color = bgColor
-        onClicked: root.clicked()
-    }
+    contentItem: Text {
+        text: control.text
+        font.pixelSize: 16
+        font.bold: true
+        color: control.textColor
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
 
-    signal clicked()
+        Behavior on color {
+            ColorAnimation { duration: 300 }
+        }
+    }
 }

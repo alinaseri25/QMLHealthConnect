@@ -1,0 +1,253 @@
+import QtQuick
+import QtQuick.Controls
+
+Rectangle {
+    id: root
+
+    property bool expanded: true
+    property var themeManager
+
+    // Signals برای ارسال داده
+    signal heightSubmitted(double value)
+    signal weightSubmitted(double value)
+    signal bloodPressureSubmitted(int systolic, int diastolic)
+    // Properties برای نمایش وضعیت
+    property alias heightStatusText: heightStatus.text
+    property alias heightStatusColor: heightStatus.color
+    property alias weightStatusText: weightStatus.text
+    property alias weightStatusColor: weightStatus.color
+    property alias bpStatusText: bpStatus.text
+    property alias bpStatusColor: bpStatus.color
+
+    width: expanded ? 330 : 0
+    height: parent.height
+
+    color: themeManager.surfaceColor
+    border.color: themeManager.panelBorderColor
+    border.width: expanded ? 1 : 0
+    clip: true
+
+    Behavior on width {
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Behavior on color { ColorAnimation { duration: 300 } }
+    Behavior on border.color { ColorAnimation { duration: 300 } }
+    ScrollView {
+        anchors.fill: parent
+        visible: expanded
+        clip: true
+
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+        Column {
+            width: root.width - 20
+            spacing: 20
+            padding: 15
+
+            // ===== بخش قد =====
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    text: "📏 قد (متر)"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                TextField {
+                    id: heightInput
+                    width: parent.width
+                    placeholderText: "مثال: 1.75"
+                    background: Rectangle {
+                        color: themeManager.inputBackgroundColor
+                        border.color: themeManager.inputBorderColor
+                        border.width: 1
+                        radius: 4
+
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                        Behavior on border.color { ColorAnimation { duration: 300 } }
+                    }
+
+                    color: themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                CButton {
+                    text: "ثبت قد"
+                    width: parent.width
+                    height: 40
+
+                    onClicked: {
+                        let value = parseFloat(heightInput.text)
+                        if (!isNaN(value) && value > 0) {
+                            root.heightSubmitted(value)
+                        } else {
+                            heightStatus.text = "❌ مقدار نامعتبر"
+                            heightStatus.color = "red"
+                        }
+                    }
+                }
+
+                Text {
+                    id: heightStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+            }
+
+            // ===== بخش وزن =====
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    text: "⚖️ وزن (کیلوگرم)"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: themeManager.primaryTextColor
+
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                TextField {
+                    id: weightInput
+                    width: parent.width
+                    placeholderText: "مثال: 70.5"
+
+                    background: Rectangle {
+                        color: themeManager.inputBackgroundColor
+                        border.color: themeManager.inputBorderColor
+                        border.width: 1
+                        radius: 4
+
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                        Behavior on border.color { ColorAnimation { duration: 300 } }
+                    }
+
+                    color: themeManager.primaryTextColor
+
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                CButton {
+                    text: "ثبت وزن"
+                    width: parent.width
+                    height: 40
+
+                    onClicked: {
+                        let value = parseFloat(weightInput.text)
+                        if (!isNaN(value) && value > 0) {
+                            root.weightSubmitted(value)
+                        } else {
+                            weightStatus.text = "❌ مقدار نامعتبر"
+                            weightStatus.color = "red"
+                        }
+                    }
+                }
+
+                Text {
+                    id: weightStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+            }
+
+            // ===== بخش فشار خون =====
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    text: "💉 فشار خون (mmHg)"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: themeManager.primaryTextColor
+
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 10
+
+                    TextField {
+                        id: systolicInput
+                        width: (parent.width - 10) / 2
+                        placeholderText: "سیستولیک (120)"
+
+                        background: Rectangle {
+                            color: themeManager.inputBackgroundColor
+                            border.color: themeManager.inputBorderColor
+                            border.width: 1
+                            radius: 4
+
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on border.color { ColorAnimation { duration: 300 } }
+                        }
+
+                        color: themeManager.primaryTextColor
+
+                        Behavior on color { ColorAnimation { duration: 300 } }}
+
+                    TextField {
+                        id: diastolicInput
+                        width: (parent.width - 10) / 2
+                        placeholderText: "دیاستولیک (80)"
+
+                        background: Rectangle {
+                            color: themeManager.inputBackgroundColor
+                            border.color: themeManager.inputBorderColor
+                            border.width: 1
+                            radius: 4
+
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on border.color { ColorAnimation { duration: 300 } }
+                        }
+
+                        color: themeManager.primaryTextColor
+
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                    }
+                }
+
+                CButton {
+                    text: "ثبت فشار خون"
+                    width: parent.width
+                    height: 40
+
+                    onClicked: {
+                        let sys = parseInt(systolicInput.text)
+                        let dia = parseInt(diastolicInput.text)
+
+                        if (!isNaN(sys) && !isNaN(dia) && sys > 0 && dia > 0) {
+                            root.bloodPressureSubmitted(sys, dia)
+                        } else {
+                            bpStatus.text = "❌ مقادیر نامعتبر"
+                            bpStatus.color = "red"
+                        }
+                    }
+                }
+
+                Text {
+                    id: bpStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+            }
+        }
+    }
+}
