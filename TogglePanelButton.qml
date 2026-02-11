@@ -4,7 +4,7 @@ CButton {
     id: root
 
     property bool panelExpanded: true
-    text: panelExpanded ? "◀" : "▶"
+    text: panelExpanded ? "▶" : "◀"
     width: 30
     height: 30
     signal togglePanel()

@@ -99,14 +99,31 @@ Rectangle {
         chartView: chartView
     }
 
+    // ===== دکمه‌های کنترل نمودار =====
+    ChartControlButtons {
+        themeManager: appTheme
+        id: controlButtons
+        x: (parent.width / 2) - 220
+        y: 10
+
+        heightSeries: chartView.heightSeries
+        weightSeries: chartView.weightSeries
+        bpSystolicSeries: chartView.bpSystolicSeries
+        bpDiastolicSeries: chartView.bpDiastolicSeries
+
+        onUpdateRequested: {
+            mainView.updateSignal()
+        }
+    }
+
     // ===== دکمه باز/بسته پنل =====
     TogglePanelButton {
         themeManager: appTheme
         id: togglePanelBtn
         panelExpanded: inputPanel.expanded
-        x: parent.width - (inputPanel.width + 100)
+        x: parent.width - (togglePanelBtn.width + 50)
         y: 10
-        z: 1
+        z: 101
 
         onTogglePanel: {
             inputPanel.expanded = !inputPanel.expanded
@@ -130,23 +147,6 @@ Rectangle {
 
         onBloodPressureSubmitted: (systolic, diastolic) => {
             mainView.setBloodPressure(systolic, diastolic)
-        }
-    }
-
-    // ===== دکمه‌های کنترل نمودار =====
-    ChartControlButtons {
-        themeManager: appTheme
-        id: controlButtons
-        x: (parent.width / 2) - 220
-        y: 10
-
-        heightSeries: chartView.heightSeries
-        weightSeries: chartView.weightSeries
-        bpSystolicSeries: chartView.bpSystolicSeries
-        bpDiastolicSeries: chartView.bpDiastolicSeries
-
-        onUpdateRequested: {
-            mainView.updateSignal()
         }
     }
 

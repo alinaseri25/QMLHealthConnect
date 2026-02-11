@@ -74,6 +74,7 @@ Rectangle {
                     id: heightInput
                     width: parent.width
                     placeholderText: "مثال: 1.75"
+                    placeholderTextColor: root.themeManager.inputPlaceholderColor
 
                     background: Rectangle {
                         color: root.themeManager.inputBackgroundColor
@@ -87,9 +88,12 @@ Rectangle {
 
                     color: root.themeManager.primaryTextColor
                     Behavior on color { ColorAnimation { duration: 300 } }
+
+                    KeyNavigation.tab: heightRegister
                 }
 
                 CButton {
+                    id: heightRegister
                     text: "ثبت قد"
                     width: parent.width
                     height: 40
@@ -104,6 +108,8 @@ Rectangle {
                             heightStatus.color = "red"
                         }
                     }
+
+                    KeyNavigation.tab: weightInput
                 }
 
                 Text {
@@ -133,6 +139,7 @@ Rectangle {
                     id: weightInput
                     width: parent.width
                     placeholderText: "مثال: 70.5"
+                    placeholderTextColor: root.themeManager.inputPlaceholderColor
 
                     background: Rectangle {
                         color:  root.themeManager.inputBackgroundColor
@@ -147,9 +154,11 @@ Rectangle {
                     color: root.themeManager.primaryTextColor
 
                     Behavior on color { ColorAnimation { duration: 300 } }
+                    KeyNavigation.tab: weightRegister
                 }
 
                 CButton {
+                    id: weightRegister
                     text: "ثبت وزن"
                     width: parent.width
                     height: 40
@@ -164,6 +173,7 @@ Rectangle {
                             weightStatus.color = "red"
                         }
                     }
+                    KeyNavigation.tab: systolicInput
                 }
 
                 Text {
@@ -194,29 +204,10 @@ Rectangle {
                     spacing: 10
 
                     TextField {
-                        id: systolicInput
-                        width: (parent.width - 10) / 2
-                        placeholderText: "سیستولیک (120)"
-
-                        background: Rectangle {
-                            color: root.themeManager.inputBackgroundColor
-                            border.color: root.themeManager.inputBorderColor
-                            border.width: 2
-                            radius: 4
-
-                            Behavior on color { ColorAnimation { duration: 300 } }
-                            Behavior on border.color { ColorAnimation { duration: 300 } }
-                        }
-
-                        color: root.themeManager.primaryTextColor
-
-                        Behavior on color { ColorAnimation { duration: 300 } }
-                    }
-
-                    TextField {
                         id: diastolicInput
                         width: (parent.width - 10) / 2
                         placeholderText: "دیاستولیک (80)"
+                        placeholderTextColor: root.themeManager.inputPlaceholderColor
 
                         background: Rectangle {
                             color: root.themeManager.inputBackgroundColor
@@ -231,10 +222,34 @@ Rectangle {
                         color: root.themeManager.primaryTextColor
 
                         Behavior on color { ColorAnimation { duration: 300 } }
+                        KeyNavigation.tab: persureRegister
+                    }
+
+                    TextField {
+                        id: systolicInput
+                        width: (parent.width - 10) / 2
+                        placeholderText: "سیستولیک (120)"
+                        placeholderTextColor: root.themeManager.inputPlaceholderColor
+
+                        background: Rectangle {
+                            color: root.themeManager.inputBackgroundColor
+                            border.color: root.themeManager.inputBorderColor
+                            border.width: 2
+                            radius: 4
+
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on border.color { ColorAnimation { duration: 300 } }
+                        }
+
+                        color: root.themeManager.primaryTextColor
+
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                        KeyNavigation.tab: diastolicInput
                     }
                 }
 
                 CButton {
+                    id: persureRegister
                     text: "ثبت فشار خون"
                     width: parent.width
                     height: 40

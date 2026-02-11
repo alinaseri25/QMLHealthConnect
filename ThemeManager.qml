@@ -3,7 +3,7 @@ import QtQuick
 QtObject {
     id: themeManager
 
-    property bool isDarkMode: false
+    property bool isDarkMode: Qt.styleHints.colorScheme === Qt.ColorScheme.Dark
 
     // رنگ‌های پس‌زمینه
     property color backgroundColor: isDarkMode ? "#1a1a1a" : "#f5f5f5"
@@ -33,6 +33,7 @@ QtObject {
     // رنگ‌های input
     property color inputBorderColor: isDarkMode ? "#505050" : "#aaaaaa"
     property color inputBackgroundColor: isDarkMode ? "#2d2d2d" : "#ffffff"
+    property color inputPlaceholderColor: isDarkMode ? "#808080" : "#9e9e9e"
 
     // رنگ‌های وضعیت
     property color successColor: isDarkMode ? "#66bb6a" : "green"
