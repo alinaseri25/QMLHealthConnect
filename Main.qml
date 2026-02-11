@@ -50,7 +50,7 @@ Rectangle {
         y: chartView.y + chartView.plotArea.y + chartView.plotArea.height
         width: chartView.plotArea.width
         height: 60
-        z: 20
+        z: 1
 
         targetAxis: chartView.xAxis
         axisType: "x"
@@ -64,7 +64,7 @@ Rectangle {
         y: chartView.y + chartView.plotArea.y
         width: chartView.plotArea.x
         height: chartView.plotArea.height
-        z: 20
+        z: 1
 
         targetAxis: chartView.y1Axis
         axisType: "y"
@@ -78,7 +78,7 @@ Rectangle {
         y: chartView.y + chartView.plotArea.y
         width: 60
         height: chartView.plotArea.height
-        z: 20
+        z: 1
 
         targetAxis: chartView.y2Axis
         axisType: "y"
@@ -92,7 +92,7 @@ Rectangle {
         y: chartView.y + chartView.plotArea.y
         width: 60
         height: chartView.plotArea.height
-        z: 20
+        z: 1
 
         targetAxis: chartView.y3Axis
         axisType: "y"
@@ -123,7 +123,7 @@ Rectangle {
         panelExpanded: inputPanel.expanded
         x: parent.width - (togglePanelBtn.width + 50)
         y: 10
-        z: 101
+        z: 3
 
         onTogglePanel: {
             inputPanel.expanded = !inputPanel.expanded
@@ -135,7 +135,7 @@ Rectangle {
         id: inputPanel
         themeManager: appTheme
         anchors.right: parent.right
-        z: 100
+        z: 2
 
         onHeightSubmitted: (value) => {
             mainView.setHeight(value)
@@ -156,7 +156,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.margins: 16
-        z: 10000  // ✅ z-index بالاتر
+        z: 3  // ✅ z-index بالاتر
     }
 
     // ===== اتصالات Backend =====
