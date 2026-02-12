@@ -42,15 +42,21 @@ ChartView {
 
     DateTimeAxis {
         id: axisX
-        format: "hh:mm:ss"
+        format: "yyyy/MM/dd hh:mm:ss"
         tickCount: 6
-        titleText: "زمان"
         min: new Date(Date.now())
         max: new Date(Date.now() + 10000)
 
         color: themeManager.axisColor
         labelsColor: themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
+
+        labelsAngle: -45
+        // تنظیمات فونت لیبل‌ها
+        labelsFont.pixelSize: 8     // اندازه فونت
+        labelsFont.family: "Vazir"   // فونت فارسی
+        labelsFont.weight: Font.Normal  // ضخامت (Light, Normal, DemiBold, Bold, Black)
+        labelsFont.italic: false     // ایتالیک
 
         Behavior on color { ColorAnimation { duration: 300 } }
         Behavior on labelsColor { ColorAnimation { duration: 300 } }
