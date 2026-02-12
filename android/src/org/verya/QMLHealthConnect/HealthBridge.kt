@@ -19,6 +19,10 @@ import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import androidx.health.connect.client.units.Length
+import androidx.health.connect.client.units.Mass
+import androidx.health.connect.client.units.Pressure
+import androidx.health.connect.client.units.BloodGlucose
 
 object HealthBridge {
 
@@ -437,10 +441,10 @@ object HealthBridge {
     }
 
     /**
-     * ✅ نوشتن قد با مقدار دلخواه
+     * ✅ نوشتن قد با زمان دلخواه
      */
     @JvmStatic
-    fun writeHeight(heightMeters: Double): String {
+    fun writeHeight(heightMeters: Double, timeIso: String): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
@@ -448,20 +452,21 @@ object HealthBridge {
                 return "ERROR: Invalid height value ($heightMeters m). Must be between 0.1 and 3 meters."
             }
 
-            // log.d(TAG, "📝 Writing height: $heightMeters m")
+            // ✅ تبدیل زمان ISO به Instant
+            val instant = Instant.parse(timeIso)
+            val zoneOffset = ZoneId.systemDefault().rules.getOffset(instant)
 
             val heightRecord = HeightRecord(
-                height = androidx.health.connect.client.units.Length.meters(heightMeters),
-                time = Instant.now(),
-                zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now())
+                height = Length.meters(heightMeters),
+                time = instant,
+                zoneOffset = zoneOffset
             )
 
             runBlocking(Dispatchers.IO) {
                 client.insertRecords(listOf(heightRecord))
             }
 
-            // log.d(TAG, "✅ Height written successfully: $heightMeters m")
-            "SUCCESS: Height $heightMeters m saved at ${Instant.now()}"
+            "SUCCESS: Height $heightMeters m saved at $instant"
 
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error: No write permission", e)
@@ -476,7 +481,7 @@ object HealthBridge {
      * ✅ نوشتن وزن با مقدار دلخواه
      */
     @JvmStatic
-    fun writeWeight(weightKg: Double): String {
+    fun writeWeight(weightKg: Double, timeIso: String): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
@@ -484,24 +489,24 @@ object HealthBridge {
                 return "ERROR: Invalid weight value ($weightKg kg). Must be between 0.1 and 300 kg."
             }
 
-            // log.d(TAG, "📝 Writing weight: $weightKg kg")
+            val instant = Instant.parse(timeIso)
+            val zoneOffset = ZoneId.systemDefault().rules.getOffset(instant)
 
             val weightRecord = WeightRecord(
-                weight = androidx.health.connect.client.units.Mass.kilograms(weightKg),
-                time = Instant.now(),
-                zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now())
+                weight = Mass.kilograms(weightKg),
+                time = instant,
+                zoneOffset = zoneOffset
             )
 
             runBlocking(Dispatchers.IO) {
                 client.insertRecords(listOf(weightRecord))
             }
 
-            // log.d(TAG, "✅ Weight written successfully: $weightKg kg")
-            "SUCCESS: Weight $weightKg kg saved at ${Instant.now()}"
+            "SUCCESS: Weight $weightKg kg saved at $instant"
 
         } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Security error: No write permission", e)
-            "SECURITY_ERROR: No write permission for weight"
+            Log.e(TAG, "❌ Security error", e)
+            "SECURITY_ERROR"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing weight", e)
             "ERROR: ${e.message}"
@@ -572,48 +577,51 @@ object HealthBridge {
      * ✅ نوشتن فشار خون
      */
     @JvmStatic
-    fun writeBloodPressure(systolicMmHg: Double, diastolicMmHg: Double): String {
+    fun writeBloodPressure(
+        systolicMmHg: Double,
+        diastolicMmHg: Double,
+        timeIso: String
+    ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
             if (systolicMmHg < 80 || systolicMmHg > 200) {
-                return "ERROR: Invalid systolic value ($systolicMmHg). Must be 80-200 mmHg."
+                return "ERROR: Invalid systolic ($systolicMmHg). Must be 80-200 mmHg."
             }
 
             if (diastolicMmHg < 40 || diastolicMmHg > 130) {
-                return "ERROR: Invalid diastolic value ($diastolicMmHg). Must be 40-130 mmHg."
+                return "ERROR: Invalid diastolic ($diastolicMmHg). Must be 40-130 mmHg."
             }
 
             if (systolicMmHg <= diastolicMmHg) {
-                return "ERROR: Systolic must be greater than diastolic."
+                return "ERROR: Systolic must be > diastolic"
             }
 
-            // log.d(TAG, "📝 Writing blood pressure: $systolicMmHg/$diastolicMmHg mmHg")
+            val instant = Instant.parse(timeIso)
+            val zoneOffset = ZoneId.systemDefault().rules.getOffset(instant)
 
-            val bpRecord = BloodPressureRecord(
-                systolic = androidx.health.connect.client.units.Pressure.millimetersOfMercury(systolicMmHg),
-                diastolic = androidx.health.connect.client.units.Pressure.millimetersOfMercury(diastolicMmHg),
-                time = Instant.now(),
-                zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now()),
-                bodyPosition = BloodPressureRecord.BODY_POSITION_STANDING_UP,
-                measurementLocation = BloodPressureRecord.MEASUREMENT_LOCATION_LEFT_WRIST
+            val record = BloodPressureRecord(
+                systolic = Pressure.millimetersOfMercury(systolicMmHg),
+                diastolic = Pressure.millimetersOfMercury(diastolicMmHg),
+                time = instant,
+                zoneOffset = zoneOffset
             )
 
             runBlocking(Dispatchers.IO) {
-                client.insertRecords(listOf(bpRecord))
+                client.insertRecords(listOf(record))
             }
 
-            // log.d(TAG, "✅ Blood pressure written: $systolicMmHg/$diastolicMmHg mmHg")
-            "SUCCESS: BP $systolicMmHg/$diastolicMmHg mmHg saved at ${Instant.now()}"
+            "SUCCESS: BP $systolicMmHg/$diastolicMmHg saved at $instant"
 
         } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Security error: No write permission", e)
-            "SECURITY_ERROR: No write permission for blood pressure"
+            Log.e(TAG, "❌ Security error", e)
+            "SECURITY_ERROR"
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error writing blood pressure", e)
+            Log.e(TAG, "❌ Error writing BP", e)
             "ERROR: ${e.message}"
         }
     }
+
 
     /**
      * ✅ خواندن قند خون با بازه زمانی دلخواه
@@ -683,62 +691,43 @@ object HealthBridge {
      * @param specimenSource منبع نمونه (پیش‌فرض: خون مویرگی)
      * @param mealType نوع وعده غذایی (پیش‌فرض: نامشخص)
      * @param relationToMeal رابطه با غذا (پیش‌فرض: عمومی)
-     */
+    */
     @JvmStatic
     fun writeBloodGlucose(
         glucoseMgDl: Double,
-        specimenSource: Int = SPECIMEN_SOURCE_CAPILLARY_BLOOD,
-        mealType: Int = MEAL_TYPE_UNKNOWN,
-        relationToMeal: Int = RELATION_TO_MEAL_GENERAL
+        specimenSource: Int,
+        mealType: Int,
+        relationToMeal: Int,
+        timeIso: String
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            // ✅ اعتبارسنجی مقدار قند خون
             if (glucoseMgDl < 20.0 || glucoseMgDl > 600.0) {
-                return "ERROR: Invalid glucose value ($glucoseMgDl mg/dL). Must be 20-600 mg/dL."
+                return "ERROR: Invalid glucose ($glucoseMgDl). Must be 20-600 mg/dL."
             }
 
-            // ✅ اعتبارسنجی specimen_source (0-4)
-            if (specimenSource !in 0..4) {
-                return "ERROR: Invalid specimen_source ($specimenSource). Must be 0-4."
-            }
+            val instant = Instant.parse(timeIso)
+            val zoneOffset = ZoneId.systemDefault().rules.getOffset(instant)
 
-            // ✅ اعتبارسنجی meal_type (0-3)
-            if (mealType !in 0..3) {
-                return "ERROR: Invalid meal_type ($mealType). Must be 0-3."
-            }
-
-            // ✅ اعتبارسنجی relation_to_meal (0-4)
-            if (relationToMeal !in 0..4) {
-                return "ERROR: Invalid relation_to_meal ($relationToMeal). Must be 0-4."
-            }
-
-            // log.d(TAG, "📝 Writing blood glucose:")
-            // log.d(TAG, "   Glucose: $glucoseMgDl mg/dL")
-            // log.d(TAG, "   Specimen: $specimenSource")
-            // log.d(TAG, "   Meal Type: $mealType")
-            // log.d(TAG, "   Relation to Meal: $relationToMeal")
-
-            val glucoseRecord = BloodGlucoseRecord(
-                level = androidx.health.connect.client.units.BloodGlucose.milligramsPerDeciliter(glucoseMgDl),
-                time = Instant.now(),
-                zoneOffset = ZoneId.systemDefault().rules.getOffset(Instant.now()),
+            val record = BloodGlucoseRecord(
+                level = BloodGlucose.milligramsPerDeciliter(glucoseMgDl),
                 specimenSource = specimenSource,
                 mealType = mealType,
-                relationToMeal = relationToMeal
+                relationToMeal = relationToMeal,
+                time = instant,
+                zoneOffset = zoneOffset
             )
 
             runBlocking(Dispatchers.IO) {
-                client.insertRecords(listOf(glucoseRecord))
+                client.insertRecords(listOf(record))
             }
 
-            // log.d(TAG, "✅ Blood glucose written successfully")
-            "SUCCESS: Glucose $glucoseMgDl mg/dL saved at ${Instant.now()}"
+            "SUCCESS: Glucose $glucoseMgDl mg/dL saved at $instant"
 
         } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Security error: No write permission", e)
-            "SECURITY_ERROR: No write permission for blood glucose"
+            Log.e(TAG, "❌ Security error", e)
+            "SECURITY_ERROR"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing blood glucose", e)
             "ERROR: ${e.message}"
@@ -751,7 +740,7 @@ object HealthBridge {
      * @param startTime زمان شروع (ISO8601)
      * @param endTime زمان پایان (ISO8601)
      * @return JSON Array: [{"bpm": 72, "time": "2024-01-15T10:30:00Z"}, ...]
-     */
+    */
     @JvmStatic
     fun readHeartRate(
         startTime: String? = null,
@@ -760,10 +749,7 @@ object HealthBridge {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            // log.d(TAG, "❤️ Reading heart rate data...")
-
             val timeFilter = createTimeFilter(startTime, endTime)
-
             val request = ReadRecordsRequest(
                 recordType = HeartRateRecord::class,
                 timeRangeFilter = timeFilter
@@ -773,35 +759,42 @@ object HealthBridge {
                 client.readRecords(request)
             }
 
-            // log.d(TAG, "📊 Found ${response.records.size} heart rate records")
-
             if (response.records.isEmpty()) {
                 return "NO_HEART_RATE_DATA"
             }
 
-            val arr = JSONArray()
+            // ✅ 1. جمع‌آوری
+            val allSamples = mutableListOf<Pair<Long, Long>>()
             response.records.forEach { record ->
-                // Health Connect ذخیره می‌کند list of samples
                 record.samples.forEach { sample ->
-                    val bpm = sample.beatsPerMinute
-                    val time = sample.time
-
-                    // log.d(TAG, "  ➤ Heart Rate: $bpm bpm at $time")
-
-                    val obj = JSONObject().apply {
-                        put("bpm", bpm)
-                        put("time", time.toString())
-                    }
-                    arr.put(obj)
+                    allSamples.add(
+                        Pair(sample.time.toEpochMilli(), sample.beatsPerMinute)
+                    )
                 }
             }
 
-            // log.d(TAG, "✅ Total heart rate samples: ${arr.length()}")
+            // ✅ 2. فیلتر کردن outliers
+            val validSamples = allSamples.filter { (_, bpm) -> bpm in 30..250 }
+
+            // ✅ 3. مرتب‌سازی
+            val sortedSamples = validSamples.sortedBy { it.first }
+
+            // ✅ 4. حذف تکراری‌های دقیق (اختیاری)
+            val uniqueSamples = sortedSamples.distinctBy { it.first }
+
+            // ✅ 5. ساخت JSON
+            val arr = JSONArray()
+            uniqueSamples.forEach { (timestamp, bpm) ->
+                val obj = JSONObject().apply {
+                    put("bpm", bpm)
+                    put("time", Instant.ofEpochMilli(timestamp).toString())
+                }
+                arr.put(obj)
+            }
+
+            Log.d(TAG, "✅ Processed ${uniqueSamples.size} valid heart rate samples")
             arr.toString()
 
-        } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Security error: No permission for heart rate", e)
-            "SECURITY_ERROR"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error reading heart rate", e)
             "ERROR: ${e.message}"
@@ -812,50 +805,47 @@ object HealthBridge {
      * ✅ نوشتن ضربان قلب
      *
      * @param bpm ضربان قلب (30-250)
-     */
+    */
     @JvmStatic
-    fun writeHeartRate(bpm: Long): String {
+    fun writeHeartRate(bpm: Long, timeIso: String): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
 
         return try {
-            // ✅ اعتبارسنجی
             if (bpm < 30 || bpm > 250) {
-                return "ERROR: Invalid heart rate ($bpm bpm). Must be 30-250 bpm."
+                return "ERROR: Invalid heart rate ($bpm). Must be 30-250 bpm."
             }
 
-            // log.d(TAG, "📝 Writing heart rate: $bpm bpm")
+            val instant = Instant.parse(timeIso)
+            val zoneOffset = ZoneId.systemDefault().rules.getOffset(instant)
 
-            val now = Instant.now()
-            val zoneOffset = ZoneId.systemDefault().rules.getOffset(now)
-
-            val heartRateRecord = HeartRateRecord(
-                startTime = now.minusSeconds(10), // شروع 10 ثانیه قبل
+            val record = HeartRateRecord(
+                startTime = instant,
                 startZoneOffset = zoneOffset,
-                endTime = now,
+                endTime = instant,
                 endZoneOffset = zoneOffset,
                 samples = listOf(
                     HeartRateRecord.Sample(
-                        time = now,
+                        time = instant,
                         beatsPerMinute = bpm
                     )
                 )
             )
 
             runBlocking(Dispatchers.IO) {
-                client.insertRecords(listOf(heartRateRecord))
+                client.insertRecords(listOf(record))
             }
 
-            // log.d(TAG, "✅ Heart rate written successfully: $bpm bpm")
-            "SUCCESS: Heart rate $bpm bpm saved at $now"
+            "SUCCESS: Heart rate $bpm bpm saved at $instant"
 
         } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Security error: No write permission", e)
-            "SECURITY_ERROR: No write permission for heart rate"
+            Log.e(TAG, "❌ Security error", e)
+            "SECURITY_ERROR"
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error writing heart rate", e)
             "ERROR: ${e.message}"
         }
     }
+
 
     @JvmStatic
     fun openHealthConnectInStore(activity: Activity): String {

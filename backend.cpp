@@ -22,24 +22,27 @@ void Backend::writeHeight(double heightMeters)
         return;
     }
 
-    // بررسی اعتبار مقدار قد (بین 0.5 تا 2.5 متر)
+    // بررسی اعتبار مقدار قد
     if (heightMeters < 0.1 || heightMeters > 3) {
         qDebug() << "❌ Invalid height value: " << heightMeters;
         emit heightWritten(false, QString("مقدار قد نامعتبر است: %1 متر").arg(heightMeters));
         return;
     }
 
-    // فراخوانی متد Kotlin برای نوشتن قد
+    // ✅ دریافت زمان فعلی به فرمت ISO8601
+    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(currentTime);
+
+    // ✅ فراخوانی متد Kotlin با پارامتر زمان
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeHeight",
-        "(D)Ljava/lang/String;",
-        heightMeters
+        "(DLjava/lang/String;)Ljava/lang/String;",  // D=double, String=time
+        heightMeters,
+        jTime.object<jstring>()
         );
 
     QString status = result.toString();
-
-    // بررسی موفقیت‌آمیز بودن
     bool success = !status.contains("ERROR") && !status.contains("NULL");
 
     emit heightWritten(success, status);
@@ -61,24 +64,25 @@ void Backend::writeWeight(double weightKg)
         return;
     }
 
-    // بررسی اعتبار مقدار وزن (بین 20 تا 300 کیلوگرم)
     if (weightKg < 0.1 || weightKg > 300.0) {
         qDebug() << "❌ Invalid weight value: " << weightKg;
         emit weightWritten(false, QString("مقدار وزن نامعتبر است: %1 کیلوگرم").arg(weightKg));
         return;
     }
 
-    // فراخوانی متد Kotlin برای نوشتن وزن
+    // ✅ دریافت زمان فعلی
+    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(currentTime);
+
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeWeight",
-        "(D)Ljava/lang/String;",
-        weightKg
+        "(DLjava/lang/String;)Ljava/lang/String;",
+        weightKg,
+        jTime.object<jstring>()
         );
 
     QString status = result.toString();
-
-    // بررسی موفقیت‌آمیز بودن
     bool success = !status.contains("ERROR") && !status.contains("NULL");
 
     emit weightWritten(success, status);
@@ -101,7 +105,7 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
         return;
     }
 
-    // ✅ اعتبارسنجی
+    // اعتبارسنجی
     if (systolicMmHg < 80 || systolicMmHg > 200) {
         qDebug() << "❌ Invalid systolic value: " << systolicMmHg;
         emit bloodPressureWritten(false,
@@ -122,17 +126,20 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
         return;
     }
 
-    // ✅ فراخوانی متد Kotlin
+    // ✅ دریافت زمان
+    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(currentTime);
+
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeBloodPressure",
-        "(DD)Ljava/lang/String;",
+        "(DDLjava/lang/String;)Ljava/lang/String;",
         systolicMmHg,
-        diastolicMmHg
+        diastolicMmHg,
+        jTime.object<jstring>()
         );
 
     QString status = result.toString();
-
     bool success = !status.contains("ERROR") && !status.contains("NULL");
     emit bloodPressureWritten(success, status);
 
@@ -153,7 +160,6 @@ void Backend::writeHeartRate(int bpm)
         return;
     }
 
-    // ✅ اعتبارسنجی (30-250 bpm)
     if (bpm < 30 || bpm > 250) {
         qDebug() << "❌ Invalid heart rate value: " << bpm;
         emit heartRateWritten(false,
@@ -161,15 +167,16 @@ void Backend::writeHeartRate(int bpm)
         return;
     }
 
-    // qDebug() << "📝 Writing heart rate: " << bpm << " bpm";
+    // ✅ دریافت زمان
+    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(currentTime);
 
-    // ✅ فراخوانی متد Kotlin
-    // متد signature: writeHeartRate(bpm: Long) -> String
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeHeartRate",
-        "(J)Ljava/lang/String;",  // J = long در JNI
-        static_cast<jlong>(bpm)
+        "(JLjava/lang/String;)Ljava/lang/String;",  // J=long, String=time
+        static_cast<jlong>(bpm),
+        jTime.object<jstring>()
         );
 
     QString status = result.toString();
@@ -194,7 +201,7 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
         return;
     }
 
-    // ✅ اعتبارسنجی مقدار قند (20-600 mg/dL)
+    // اعتبارسنجی
     if (glucoseMgDl < 20.0 || glucoseMgDl > 600.0) {
         qDebug() << "❌ Invalid glucose value: " << glucoseMgDl;
         emit bloodGlucoseWritten(false,
@@ -202,7 +209,6 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
         return;
     }
 
-    // ✅ اعتبارسنجی فیلدهای اضافی
     if (specimenSource < 0 || specimenSource > 4) {
         emit bloodGlucoseWritten(false, "specimen_source نامعتبر است (باید 0-4 باشد)");
         return;
@@ -218,22 +224,19 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
         return;
     }
 
-    // qDebug() << "📝 Writing blood glucose:";
-    // qDebug() << "   Glucose: " << glucoseMgDl << " mg/dL";
-    // qDebug() << "   Specimen: " << specimenSource;
-    // qDebug() << "   Meal Type: " << mealType;
-    // qDebug() << "   Relation to Meal: " << relationToMeal;
+    // ✅ دریافت زمان
+    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(currentTime);
 
-    // ✅ فراخوانی متد Kotlin
-    // متد signature: writeBloodGlucose(Double, Int, Int, Int) -> String
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeBloodGlucose",
-        "(DIII)Ljava/lang/String;",  // D=double, I=int
+        "(DIIILjava/lang/String;)Ljava/lang/String;",
         glucoseMgDl,
         specimenSource,
         mealType,
-        relationToMeal
+        relationToMeal,
+        jTime.object<jstring>()
         );
 
     QString status = result.toString();
