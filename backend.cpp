@@ -3,7 +3,7 @@
 Backend::Backend(QObject *parent)
     : QObject{parent}
 {
-    readData();
+    //readData();
 }
 
 void Backend::onUpdateRequest()
@@ -142,6 +142,111 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
 #endif
 }
 
+void Backend::writeHeartRate(int bpm)
+{
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        qDebug() << "❌ Activity is invalid!";
+        emit heartRateWritten(false, "Activity is invalid");
+        return;
+    }
+
+    // ✅ اعتبارسنجی (30-250 bpm)
+    if (bpm < 30 || bpm > 250) {
+        qDebug() << "❌ Invalid heart rate value: " << bpm;
+        emit heartRateWritten(false,
+                              QString("مقدار ضربان قلب نامعتبر است: %1 bpm").arg(bpm));
+        return;
+    }
+
+    // qDebug() << "📝 Writing heart rate: " << bpm << " bpm";
+
+    // ✅ فراخوانی متد Kotlin
+    // متد signature: writeHeartRate(bpm: Long) -> String
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeHeartRate",
+        "(J)Ljava/lang/String;",  // J = long در JNI
+        static_cast<jlong>(bpm)
+        );
+
+    QString status = result.toString();
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    emit heartRateWritten(success, status);
+
+#else
+    qDebug() << "Not Android - Heart rate write skipped";
+    emit heartRateWritten(false, "Not running on Android");
+#endif
+}
+
+void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
+{
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        qDebug() << "❌ Activity is invalid!";
+        emit bloodGlucoseWritten(false, "Activity is invalid");
+        return;
+    }
+
+    // ✅ اعتبارسنجی مقدار قند (20-600 mg/dL)
+    if (glucoseMgDl < 20.0 || glucoseMgDl > 600.0) {
+        qDebug() << "❌ Invalid glucose value: " << glucoseMgDl;
+        emit bloodGlucoseWritten(false,
+                                 QString("مقدار قند خون نامعتبر است: %1 mg/dL").arg(glucoseMgDl));
+        return;
+    }
+
+    // ✅ اعتبارسنجی فیلدهای اضافی
+    if (specimenSource < 0 || specimenSource > 4) {
+        emit bloodGlucoseWritten(false, "specimen_source نامعتبر است (باید 0-4 باشد)");
+        return;
+    }
+
+    if (mealType < 0 || mealType > 3) {
+        emit bloodGlucoseWritten(false, "meal_type نامعتبر است (باید 0-3 باشد)");
+        return;
+    }
+
+    if (relationToMeal < 0 || relationToMeal > 4) {
+        emit bloodGlucoseWritten(false, "relation_to_meal نامعتبر است (باید 0-4 باشد)");
+        return;
+    }
+
+    // qDebug() << "📝 Writing blood glucose:";
+    // qDebug() << "   Glucose: " << glucoseMgDl << " mg/dL";
+    // qDebug() << "   Specimen: " << specimenSource;
+    // qDebug() << "   Meal Type: " << mealType;
+    // qDebug() << "   Relation to Meal: " << relationToMeal;
+
+    // ✅ فراخوانی متد Kotlin
+    // متد signature: writeBloodGlucose(Double, Int, Int, Int) -> String
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeBloodGlucose",
+        "(DIII)Ljava/lang/String;",  // D=double, I=int
+        glucoseMgDl,
+        specimenSource,
+        mealType,
+        relationToMeal
+        );
+
+    QString status = result.toString();
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    emit bloodGlucoseWritten(success, status);
+
+#else
+    qDebug() << "Not Android - Blood glucose write skipped";
+    emit bloodGlucoseWritten(false, "Not running on Android");
+#endif
+}
+
 
 void Backend::permissionRequest()
 {
@@ -219,6 +324,8 @@ void Backend::readData()
     wList.clear();
     bpSystolicList.clear();
     bpDiastolicList.clear();
+    heartRateList.clear();
+    bloodGlucoseList.clear();
 
 #ifdef Q_OS_ANDROID
     QJniObject context = QNativeInterface::QAndroidApplication::context();
@@ -242,107 +349,207 @@ void Backend::readData()
         qDebug() << "⚠️ Requesting permissions...";
         permissionRequest();
         qDebug() << "💡 Grant permissions and press Read again";
-        return;  // ← این خط کلیدی است
+        return;
     }
 
     qDebug() << "✅ Reading data...";
 
-    // ✅ Step 3: Safe read
+    // ✅ ساخت بازه زمانی: یک ماه اخیر تا الان
+    QString startTime = isoStringMonthsAgo(1);
+    QString endTime   = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+
+    qDebug() << "📅 Time range:" << startTime << "→" << endTime;
+
     QString status;
     QJniObject result;
 
+    // ─────────────────────────────────────────
     // Height
-    result = QJniObject::callStaticObjectMethod(
-        "org/verya/QMLHealthConnect/HealthBridge",
-        "readHeight",
-        "()Ljava/lang/String;"
-        );
+    // ─────────────────────────────────────────
+    {
+        QJniObject jStart = QJniObject::fromString(startTime);
+        QJniObject jEnd   = QJniObject::fromString(endTime);
 
-    status = result.toString();
-    if (status == "SECURITY_ERROR") {
-        qDebug() << "❌ Security error (height)";
-        return;
-    }
+        result = QJniObject::callStaticObjectMethod(
+            "org/verya/QMLHealthConnect/HealthBridge",
+            "readHeight",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+            jStart.object<jstring>(),
+            jEnd.object<jstring>()
+            );
 
-    if (!status.startsWith("ERROR") && status != "NO_HEIGHT_DATA") {
-        QJsonDocument* document = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
-        QJsonArray arr = document->array();
-        for(uint32_t i = 0; i < arr.size(); i++) {
-            QPointF point;
-            QJsonObject obj = arr.at(i).toObject();
-            QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-            point.setX(dateTime.toMSecsSinceEpoch());
-            point.setY(obj["height_m"].toDouble());
-            hList.append(point);
+        status = result.toString();
+        qDebug() << "📏 Height status:" << status.left(80);
+
+        if (status == "SECURITY_ERROR") {
+            qDebug() << "❌ Security error (height)";
+            return;
         }
-        delete document;
+
+        if (!status.startsWith("ERROR") && status != "NO_HEIGHT_DATA") {
+            QJsonDocument doc = QJsonDocument::fromJson(status.toUtf8());
+            QJsonArray arr = doc.array();
+            for (qsizetype i = 0; i < arr.size(); i++) {
+                QJsonObject obj = arr.at(i).toObject();
+                QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+                hList.append(QPointF(dt.toMSecsSinceEpoch(), obj["height_m"].toDouble()));
+            }
+        }
     }
 
+    // ─────────────────────────────────────────
     // Weight
-    result = QJniObject::callStaticObjectMethod(
-        "org/verya/QMLHealthConnect/HealthBridge",
-        "readWeight",
-        "()Ljava/lang/String;"
-        );
+    // ─────────────────────────────────────────
+    {
+        QJniObject jStart = QJniObject::fromString(startTime);
+        QJniObject jEnd   = QJniObject::fromString(endTime);
 
-    status = result.toString();
-    if (status == "SECURITY_ERROR") {
-        qDebug() << "❌ Security error (weight)";
-        return;
-    }
+        result = QJniObject::callStaticObjectMethod(
+            "org/verya/QMLHealthConnect/HealthBridge",
+            "readWeight",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+            jStart.object<jstring>(),
+            jEnd.object<jstring>()
+            );
 
-    if (!status.startsWith("ERROR") && status != "NO_WEIGHT_DATA") {
-        QJsonDocument* document = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
-        QJsonArray arr = document->array();
-        for(uint32_t i = 0; i < arr.size(); i++) {
-            QPointF point;
-            QJsonObject obj = arr.at(i).toObject();
-            QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-            point.setX(dateTime.toMSecsSinceEpoch());
-            point.setY(obj["weight_kg"].toDouble());
-            wList.append(point);
+        status = result.toString();
+        qDebug() << "⚖️ Weight status:" << status.left(80);
+
+        if (status == "SECURITY_ERROR") {
+            qDebug() << "❌ Security error (weight)";
+            return;
         }
-        delete document;
+
+        if (!status.startsWith("ERROR") && status != "NO_WEIGHT_DATA") {
+            QJsonDocument doc = QJsonDocument::fromJson(status.toUtf8());
+            QJsonArray arr = doc.array();
+            for (qsizetype i = 0; i < arr.size(); i++) {
+                QJsonObject obj = arr.at(i).toObject();
+                QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+                wList.append(QPointF(dt.toMSecsSinceEpoch(), obj["weight_kg"].toDouble()));
+            }
+        }
     }
 
+    // ─────────────────────────────────────────
     // Blood Pressure
-    result = QJniObject::callStaticObjectMethod(
-        "org/verya/QMLHealthConnect/HealthBridge",
-        "readBloodPressure",
-        "()Ljava/lang/String;"
-        );
+    // ─────────────────────────────────────────
+    {
+        QJniObject jStart = QJniObject::fromString(startTime);
+        QJniObject jEnd   = QJniObject::fromString(endTime);
 
-    status = result.toString();
-    if (status == "SECURITY_ERROR") {
-        qDebug() << "❌ Security error (BP)";
-        return;
-    }
+        result = QJniObject::callStaticObjectMethod(
+            "org/verya/QMLHealthConnect/HealthBridge",
+            "readBloodPressure",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+            jStart.object<jstring>(),
+            jEnd.object<jstring>()
+            );
 
-    if (!status.contains("NO_BP_DATA") && !status.contains("ERROR")) {
-        QJsonDocument* bpDocument = new QJsonDocument(QJsonDocument::fromJson(status.toUtf8()));
-        QJsonArray bpArr = bpDocument->array();
+        status = result.toString();
+        qDebug() << "🩺 BP status:" << status.left(80);
 
-        for(qsizetype i = 0; i < bpArr.size(); i++) {
-            QJsonObject obj = bpArr.at(i).toObject();
-            QDateTime dateTime = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-
-            QPointF systolicPoint;
-            systolicPoint.setX(dateTime.toMSecsSinceEpoch());
-            systolicPoint.setY(obj["systolic_mmhg"].toDouble());
-            bpSystolicList.append(systolicPoint);
-
-            QPointF diastolicPoint;
-            diastolicPoint.setX(dateTime.toMSecsSinceEpoch());
-            diastolicPoint.setY(obj["diastolic_mmhg"].toDouble());
-            bpDiastolicList.append(diastolicPoint);
+        if (status == "SECURITY_ERROR") {
+            qDebug() << "❌ Security error (BP)";
+            return;
         }
 
-        delete bpDocument;
+        if (!status.contains("NO_BP_DATA") && !status.contains("ERROR")) {
+            QJsonDocument doc = QJsonDocument::fromJson(status.toUtf8());
+            QJsonArray arr = doc.array();
+            for (qsizetype i = 0; i < arr.size(); i++) {
+                QJsonObject obj = arr.at(i).toObject();
+                QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+                qint64 ms = dt.toMSecsSinceEpoch();
+
+                bpSystolicList.append(QPointF(ms, obj["systolic"].toDouble()));
+                bpDiastolicList.append(QPointF(ms, obj["diastolic"].toDouble()));
+                //qDebug() << QString("systolic_mmhg : %1 -- diastolic_mmhg : %2").arg(bpSystolicList.end()->y()).arg(bpDiastolicList.end()->y());
+            }
+        }
     }
 
-    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList);
+    // ─────────────────────────────────────────
+    // Heart Rate
+    // ─────────────────────────────────────────
+    {
+        QJniObject jStart = QJniObject::fromString(startTime);
+        QJniObject jEnd   = QJniObject::fromString(endTime);
+
+        result = QJniObject::callStaticObjectMethod(
+            "org/verya/QMLHealthConnect/HealthBridge",
+            "readHeartRate",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+            jStart.object<jstring>(),
+            jEnd.object<jstring>()
+            );
+
+        status = result.toString();
+        qDebug() << "❤️ Heart Rate status:" << status.left(80);
+
+        if (status == "SECURITY_ERROR") {
+            qDebug() << "❌ Security error (heart rate)";
+            return;
+        }
+
+        if (!status.startsWith("ERROR") && status != "NO_HEART_RATE_DATA") {
+            QJsonDocument doc = QJsonDocument::fromJson(status.toUtf8());
+            QJsonArray arr = doc.array();
+            // qDebug() << "💓 Processing" << arr.size() << "heart rate records";
+            for (qsizetype i = 0; i < arr.size(); i++) {
+                QJsonObject obj = arr.at(i).toObject();
+                QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+                heartRateList.append(QPointF(dt.toMSecsSinceEpoch(), obj["bpm"].toDouble()));
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────
+    // Blood Glucose
+    // ─────────────────────────────────────────
+    {
+        QJniObject jStart = QJniObject::fromString(startTime);
+        QJniObject jEnd   = QJniObject::fromString(endTime);
+
+        result = QJniObject::callStaticObjectMethod(
+            "org/verya/QMLHealthConnect/HealthBridge",
+            "readBloodGlucose",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+            jStart.object<jstring>(),
+            jEnd.object<jstring>()
+            );
+
+        status = result.toString();
+        qDebug() << "🩸 Glucose status:" << status.left(80);
+
+        if (status == "SECURITY_ERROR") {
+            qDebug() << "❌ Security error (blood glucose)";
+            return;
+        }
+
+        if (!status.startsWith("ERROR") && status != "NO_BLOOD_GLUCOSE_DATA") {
+            QJsonDocument doc = QJsonDocument::fromJson(status.toUtf8());
+            QJsonArray arr = doc.array();
+            // qDebug() << "🩸 Processing" << arr.size() << "blood glucose records";
+            for (qsizetype i = 0; i < arr.size(); i++) {
+                QJsonObject obj = arr.at(i).toObject();
+                QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+                bloodGlucoseList.append(QPointF(dt.toMSecsSinceEpoch(), obj["glucose_mg_dl"].toDouble()));
+            }
+        }
+    }
+
+    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList);
 
 #else
     qDebug() << "Not Android";
 #endif
+}
+
+QString Backend::isoStringMonthsAgo(int months)
+{
+    QDateTime now = QDateTime::currentDateTimeUtc();
+    QDateTime past = now.addMonths(-months);
+    // فرمت ISO8601 که Kotlin می‌فهمد
+    return past.toString(Qt::ISODateWithMs);
 }

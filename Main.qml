@@ -22,6 +22,8 @@ Rectangle {
     signal setHeight(double value)
     signal setWeight(double value)
     signal setBloodPressure(int systolic, int diastolic)
+    signal setHeartRate(double bpm)
+    signal setBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
 
     // ===== نمودار اصلی =====
     HealthChartView {
@@ -66,7 +68,7 @@ Rectangle {
         height: chartView.plotArea.height
         z: 1
 
-        targetAxis: chartView.y1Axis
+        targetAxis: chartView.heightAxis
         axisType: "y"
         chartView: chartView
     }
@@ -80,7 +82,7 @@ Rectangle {
         height: chartView.plotArea.height
         z: 1
 
-        targetAxis: chartView.y2Axis
+        targetAxis: chartView.weightAxis
         axisType: "y"
         chartView: chartView
     }
@@ -94,7 +96,35 @@ Rectangle {
         height: chartView.plotArea.height
         z: 1
 
-        targetAxis: chartView.y3Axis
+        targetAxis: chartView.bpAxis
+        axisType: "y"
+        chartView: chartView
+    }
+
+    // ✅ محور Y5 - ضربان قلب
+    AxisInteractionZone {
+        id: y5AxisZone
+        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width + 120
+        y: chartView.y + chartView.plotArea.y
+        width: 60
+        height: chartView.plotArea.height
+        z: 1
+
+        targetAxis: chartView.y5Axis
+        axisType: "y"
+        chartView: chartView
+    }
+
+    // ✅ محور Y6 - قند خون
+    AxisInteractionZone {
+        id: y6AxisZone
+        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width + 180
+        y: chartView.y + chartView.plotArea.y
+        width: 60
+        height: chartView.plotArea.height
+        z: 1
+
+        targetAxis: chartView.y6Axis
         axisType: "y"
         chartView: chartView
     }
@@ -103,13 +133,17 @@ Rectangle {
     ChartControlButtons {
         themeManager: appTheme
         id: controlButtons
-        x: (parent.width / 2) - 220
+        x: (parent.width / 2) - 350
         y: 10
+
+        chartView: chartView
 
         heightSeries: chartView.heightSeries
         weightSeries: chartView.weightSeries
         bpSystolicSeries: chartView.bpSystolicSeries
         bpDiastolicSeries: chartView.bpDiastolicSeries
+        heartRateSeries: chartView.heartRateSeries
+        bloodGlucoseSeries: chartView.bloodGlucoseSeries
 
         onUpdateRequested: {
             mainView.updateSignal()
@@ -148,6 +182,14 @@ Rectangle {
         onBloodPressureSubmitted: (systolic, diastolic) => {
             mainView.setBloodPressure(systolic, diastolic)
         }
+
+        onHeartRateSubmitted: (value) => {
+            mainView.setHeartRate(value)
+        }
+
+        onBloodGlucoseSubmitted: (glucoseMgDl, specimenSource, mealType, relationToMeal) => {
+            mainView.setBloodGlucose(glucoseMgDl, specimenSource, mealType, relationToMeal)
+        }
     }
 
     // ===== دکمه تغییر تم =====
@@ -165,6 +207,10 @@ Rectangle {
         setHeight.connect(myBackend.writeHeight)
         setWeight.connect(myBackend.writeWeight)
         setBloodPressure.connect(myBackend.writeBloodPressure)
+        setHeartRate.connect(myBackend.writeHeartRate)
+        setBloodGlucose.connect(myBackend.writeBloodGlucose)
+
+        controlButtons.setInitialVisibility(false,true,true,false,true)
     }
 
     Connections {
@@ -203,19 +249,71 @@ Rectangle {
             }
         }
 
-        function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList) {
+        function onHeartRateWritten(success, message) {
+            if (success) {
+                inputPanel.heartRateStatusText = "✅ ضربان قلب ثبت شد"
+                inputPanel.heartRateStatusColor = "green"
+                Qt.callLater(updateSignal)
+            } else {
+                inputPanel.heartRateStatusText = "❌ " + message
+                inputPanel.heartRateStatusColor = "red"
+            }
+        }
+
+        function onBloodGlucoseWritten(success, message) {
+            if (success) {
+                inputPanel.bloodGlucoseStatusText = "✅ قند خون ثبت شد"
+                inputPanel.bloodGlucoseStatusColor = "green"
+                Qt.callLater(updateSignal)
+            } else {
+                inputPanel.bloodGlucoseStatusText = "❌ " + message
+                inputPanel.bloodGlucoseStatusColor = "red"
+            }
+        }
+
+        function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList) {
             chartView.heightSeries.clear()
             chartView.weightSeries.clear()
             chartView.bpSystolicSeries.clear()
             chartView.bpDiastolicSeries.clear()
+            chartView.heartRateSeries.clear()
+            chartView.bloodGlucoseSeries.clear()
 
-            let minTime = hList[0].x
-            if (wList[0].x < minTime) minTime = wList[0].x
-            if (bpSystolicList[0].x < minTime) minTime = bpSystolicList[0].x
+            // ✅ تعریف متغیرها با مقادیر پیش‌فرض
+            let minH = 140, maxH = 200
+            let minW = 50, maxW = 120
+            let minBP = 60, maxBP = 140
+            let minHR = 50, maxHR = 120
+            let minBG = 70, maxBG = 200
 
-            let minH = ((hList[0].y * 100) - 10), maxH = ((hList[0].y * 100) + 10)
-            let minW = (wList[0].y - 1), maxW = (wList[0].y + 1)
-            let minBP = (bpDiastolicList[0].y - 1), maxBP = (bpSystolicList[0].y)
+            // محاسبه minTime
+            let minTime = Number.MAX_VALUE
+            if (hList.length > 0 && hList[0].x < minTime) minTime = hList[0].x
+            if (wList.length > 0 && wList[0].x < minTime) minTime = wList[0].x
+            if (bpSystolicList.length > 0 && bpSystolicList[0].x < minTime) minTime = bpSystolicList[0].x
+            if (heartRateList.length > 0 && heartRateList[0].x < minTime) minTime = heartRateList[0].x
+            if (bloodGlucoseList.length > 0 && bloodGlucoseList[0].x < minTime) minTime = bloodGlucoseList[0].x
+
+            if (hList.length > 0) {
+                minH = (hList[0].y * 100) - 10
+                maxH = (hList[0].y * 100) + 10
+            }
+            if (wList.length > 0) {
+                minW = wList[0].y - 1
+                maxW = wList[0].y + 1
+            }
+            if (bpDiastolicList.length > 0) {
+                minBP = bpDiastolicList[0].y - 1
+                maxBP = bpSystolicList[0].y + 1
+            }
+            if (heartRateList.length > 0) {
+                minHR = heartRateList[0].y - 1
+                maxHR = heartRateList[0].y + 1
+            }
+            if (bloodGlucoseList.length > 0) {
+                minBG = bloodGlucoseList[0].y - 1
+                maxBG = bloodGlucoseList[0].y + 1
+            }
 
             // پردازش داده‌های قد
             for (let i = 0; i < hList.length; i++) {
@@ -244,16 +342,38 @@ Rectangle {
                 if (bpDiastolicList[i].y > maxBP) maxBP = bpDiastolicList[i].y
             }
 
-            // تنظیم محدوده محورها
-            chartView.y1Axis.min = minH
-            chartView.y1Axis.max = maxH
+            // === پردازش ضربان قلب ===
+            for (let i = 0; i < heartRateList.length; i++) {
+                let hr = heartRateList[i].y
+                chartView.heartRateSeries.append(heartRateList[i].x, hr)
+                if (hr < minHR) minHR = hr - 1
+                if (hr > maxHR) maxHR = hr + 1
+            }
 
-            chartView.y2Axis.min = minW
-            chartView.y2Axis.max = maxW
+            // === پردازش قند خون ===
+            for (let i = 0; i < bloodGlucoseList.length; i++) {
+                let bg = bloodGlucoseList[i].y
+                chartView.bloodGlucoseSeries.append(bloodGlucoseList[i].x, bg)
+                if (bg < minBG) minBG = bg - 2
+                if (bg > maxBG) maxBG = bg + 2
+            }
+
+            // تنظیم محدوده محورها
+            chartView.heightAxis.min = minH
+            chartView.heightAxis.max = maxH
+
+            chartView.weightAxis.min = minW
+            chartView.weightAxis.max = maxW
 
             let bpMargin = (maxBP - minBP) * 0.1
-            chartView.y3Axis.min = minBP - bpMargin
-            chartView.y3Axis.max = maxBP + bpMargin
+            chartView.bpAxis.min = minBP - bpMargin
+            chartView.bpAxis.max = maxBP + bpMargin
+
+            chartView.hrAxis.min = minHR
+            chartView.hrAxis.max = maxHR
+
+            chartView.bgAxis.min = minBG
+            chartView.bgAxis.max = maxBG
 
             chartView.xAxis.min = new Date(minTime)
             chartView.xAxis.max = new Date(Date.now())

@@ -30,6 +30,10 @@ dependencies {
     implementation "androidx.health.connect:connect-client:1.1.0-alpha10"
 }
 
+def getVersionName() {
+    return new File(projectDir.parent, 'VERSION').text.trim()
+}
+
 android {
     /*******************************************************
      * The following variables:
@@ -93,5 +97,9 @@ android {
         minSdkVersion qtMinSdkVersion
         targetSdkVersion qtTargetSdkVersion
         ndk.abiFilters = qtTargetAbiList.split(",")
+
+        // ✅ نسخه اپلیکیشن
+        versionCode 13          // برای هر release باید +1 شود
+        versionName getVersionName()     // نسخه قابل نمایش به کاربر
     }
 }

@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(QMLHealthConnect VERSION 0.1 LANGUAGES CXX)
+file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" APP_VERSION)
+project(QMLHealthConnect VERSION ${APP_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Charts Core Gui Qml Quick)
+find_package(Qt6 REQUIRED COMPONENTS Charts Core Gui Qml Quick Xml)
+
+add_subdirectory(../../QXlsx/QXlsx QXlsx_build)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -26,6 +29,7 @@ qt6_add_resources(QMLHealthConnect "qmlchartsgallery"
         TogglePanelButton.qml
         ChartControlButtons.qml
         InputPanel.qml
+        Divider.qml
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -45,6 +49,8 @@ target_link_libraries(QMLHealthConnect PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::Xml
+    QXlsx::QXlsx
 )
 
 if(ANDROID)

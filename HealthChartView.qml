@@ -9,10 +9,21 @@ ChartView {
     property alias weightSeries: spLine2
     property alias bpSystolicSeries: spLine3
     property alias bpDiastolicSeries: spLine4
+    property alias heartRateSeries: spLine5
+    property alias bloodGlucoseSeries: spLine6
     property alias xAxis: axisX
-    property alias y1Axis: axisY1
-    property alias y2Axis: axisY2
-    property alias y3Axis: axisY3
+    property alias heightAxis: axisY1
+    property alias weightAxis: axisY2
+    property alias bpAxis: axisY3
+    property alias hrAxis: axisY5
+    property alias bgAxis: axisY6
+
+    // ✅ Property‌های جدید برای کنترل visibility
+    property bool heightAxisVisible: true
+    property bool weightAxisVisible: true
+    property bool bpAxisVisible: true
+    property bool heartRateAxisVisible: true
+    property bool bloodGlucoseAxisVisible: true
 
     title: "نمودار سلامت"
     antialiasing: true
@@ -53,6 +64,7 @@ ChartView {
         tickCount: 5
         labelFormat: "%.1f"
         titleText: "قد (m)"
+        visible: chartView.heightAxisVisible
 
         color: themeManager.chartHeightColor
         labelsColor: themeManager.axisLabelColor
@@ -70,6 +82,7 @@ ChartView {
         tickCount: 5
         labelFormat: "%.1f"
         titleText: "وزن (kg)"
+        visible: chartView.weightAxisVisible
 
         color: themeManager.chartWeightColor
         labelsColor: themeManager.axisLabelColor
@@ -87,8 +100,45 @@ ChartView {
         tickCount: 8
         labelFormat: "%.0f"
         titleText: "فشار خون (mmHg)"
+        visible: chartView.bpAxisVisible
 
         color: themeManager.chartBPSystolicColor
+        labelsColor: themeManager.axisLabelColor
+        gridLineColor: themeManager.gridColor
+
+        Behavior on color { ColorAnimation { duration: 300 } }
+        Behavior on labelsColor { ColorAnimation { duration: 300 } }
+        Behavior on gridLineColor { ColorAnimation { duration: 300 } }
+    }
+
+    ValueAxis {
+        id: axisY5
+        min: 100
+        max: 40
+        tickCount: 5
+        labelFormat: "%.0f"
+        titleText: "ضربان قلب (bpm)"
+        visible: chartView.heartRateAxisVisible
+
+        color: themeManager.chartHeartRateColor
+        labelsColor: themeManager.axisLabelColor
+        gridLineColor: themeManager.gridColor
+
+        Behavior on color { ColorAnimation { duration: 300 } }
+        Behavior on labelsColor { ColorAnimation { duration: 300 } }
+        Behavior on gridLineColor { ColorAnimation { duration: 300 } }
+    }
+
+    ValueAxis {
+        id: axisY6
+        min: 100
+        max: 40
+        tickCount: 5
+        labelFormat: "%.1f"
+        titleText: "قند خون (mg/dL)"
+        visible: chartView.bloodGlucoseAxisVisible
+
+        color: themeManager.chartBloodGlucoseColor
         labelsColor: themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
@@ -143,6 +193,30 @@ ChartView {
         axisX: axisX
         axisY: axisY3
         color: themeManager.chartBPDiastolicColor
+
+        Behavior on color { ColorAnimation { duration: 300 } }
+    }
+
+    LineSeries {
+        id: spLine5
+        name: "ضربان قلب"
+        useOpenGL: true
+        axisX: axisX
+        axisY: axisY5
+        color: themeManager.chartHeartRateColor
+        width: 2
+
+        Behavior on color { ColorAnimation { duration: 300 } }
+    }
+
+    LineSeries {
+        id: spLine6
+        name: "قند خون"
+        useOpenGL: true
+        axisX: axisX
+        axisY: axisY6
+        color: themeManager.chartBloodGlucoseColor
+        width: 2
 
         Behavior on color { ColorAnimation { duration: 300 } }
     }

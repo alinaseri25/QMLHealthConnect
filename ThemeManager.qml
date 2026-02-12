@@ -24,6 +24,8 @@ QtObject {
     property color chartWeightColor: "#66BB6A"//isDarkMode ? "#66BB6A" : "#388E3C"        // سبز
     property color chartBPSystolicColor: "#EF5350"//isDarkMode ? "#EF5350" : "#D32F2F"    // قرمز
     property color chartBPDiastolicColor: isDarkMode ? "#FF9800" : "#F57C00"   // نارنجی
+    property color chartHeartRateColor: isDarkMode ? "#AB47BC" : "#7B1FA2"    // بنفش - ضربان قلب
+    property color chartBloodGlucoseColor: isDarkMode ? "#FFCA28" : "#F9A825" // زرد طلایی - قند خون
 
     // رنگ‌های محور
     property color axisColor: isDarkMode ? "#505050" : "#666666"
