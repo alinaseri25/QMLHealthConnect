@@ -25,7 +25,9 @@ ChartView {
     property bool heartRateAxisVisible: true
     property bool bloodGlucoseAxisVisible: true
 
-    title: "نمودار سلامت"
+    property bool tooltipEnabled: true
+
+    title: "نمودار سلامتی"
     antialiasing: true
     animationOptions: ChartView.NoAnimation
     legend.alignment: Qt.AlignTop
@@ -225,5 +227,98 @@ ChartView {
         width: 2
 
         Behavior on color { ColorAnimation { duration: 300 } }
+    }
+
+    MouseArea {
+        id: chartMouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        propagateComposedEvents: true
+
+        onPositionChanged: function(mouse) {
+            if (!tooltipEnabled) return
+            updateTooltip(mouse.x, mouse.y)
+        }
+
+        onPressed: function(mouse) {
+            if (!tooltipEnabled) return
+            updateTooltip(mouse.x, mouse.y)
+        }
+
+        onExited: {
+            chartTooltip.hide()
+        }
+
+        function updateTooltip(mouseX, mouseY) {
+            // تبدیل مختصات صفحه به مختصات نمودار
+            var chartPoint = chartView.mapToValue(Qt.point(mouseX, mouseY), spLine1)
+
+            // پیدا کردن نزدیک‌ترین نقطه
+            var closestPoint = findClosestPoint(chartPoint.x)
+
+            if (closestPoint.found) {
+                var dateStr = Qt.formatDateTime(new Date(closestPoint.x), "yyyy/MM/dd hh:mm")
+                chartTooltip.show(
+                    mouseX,
+                    mouseY,
+                    closestPoint.seriesName + " - " + dateStr,
+                    closestPoint.value.toFixed(2) + " " + closestPoint.unit
+                )
+            } else {
+                chartTooltip.hide()
+            }
+        }
+
+        function findClosestPoint(targetX) {
+            var result = {
+                found: false,
+                x: 0,
+                value: 0,
+                seriesName: "",
+                unit: ""
+            }
+
+            var minDistance = Number.MAX_VALUE
+            var threshold = (axisX.max.getTime() - axisX.min.getTime()) * 0.05
+
+            // لیست همه سری‌ها
+            var seriesList = [
+                { series: spLine1, name: "قد", unit: "cm", visible: heightAxisVisible },
+                { series: spLine2, name: "وزن", unit: "kg", visible: weightAxisVisible },
+                { series: spLine3, name: "فشار سیستولیک", unit: "mmHg", visible: bpAxisVisible },
+                { series: spLine4, name: "فشار دیاستولیک", unit: "mmHg", visible: bpAxisVisible },
+                { series: spLine5, name: "ضربان قلب", unit: "bpm", visible: heartRateAxisVisible },
+                { series: spLine6, name: "قند خون", unit: "mg/dL", visible: bloodGlucoseAxisVisible }
+            ]
+
+            for (var i = 0; i < seriesList.length; i++) {
+                if (!seriesList[i].visible) continue
+
+                var series = seriesList[i].series
+
+                for (var j = 0; j < series.count; j++) {
+                    var point = series.at(j)
+                    var distance = Math.abs(point.x - targetX)
+
+                    if (distance < minDistance && distance < threshold) {
+                        minDistance = distance
+                        result.found = true
+                        result.x = point.x
+                        result.value = point.y
+                        result.seriesName = seriesList[i].name
+                        result.unit = seriesList[i].unit
+                    }
+                }
+            }
+
+            return result
+        }
+    }
+
+    // ✅ Tooltip Component
+    ChartTooltip {
+        id: chartTooltip
+        z: 100
+        parent: chartView
     }
 }
