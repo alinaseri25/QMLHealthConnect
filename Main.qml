@@ -17,6 +17,8 @@ Rectangle {
         ColorAnimation { duration: 300 }
     }
 
+    property int statusResetDelay: 7000
+
     // ===== Signals =====
     signal updateSignal()
     signal setHeight(double value)
@@ -201,6 +203,57 @@ Rectangle {
         z: 3  // ✅ z-index بالاتر
     }
 
+    // ===== Timers برای ریست وضعیت =====
+    Timer {
+        id: heightStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.heightStatusText = ""
+            inputPanel.heightStatusColor = "gray"
+        }
+    }
+
+    Timer {
+        id: weightStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.weightStatusText = ""
+            inputPanel.weightStatusColor = "gray"
+        }
+    }
+
+    Timer {
+        id: bpStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.bpStatusText = ""
+            inputPanel.bpStatusColor = "gray"
+        }
+    }
+
+    Timer {
+        id: heartRateStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.heartRateStatusText = ""
+            inputPanel.heartRateStatusColor = "gray"
+        }
+    }
+
+    Timer {
+        id: bloodGlucoseStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.bloodGlucoseStatusText = ""
+            inputPanel.bloodGlucoseStatusColor = "gray"
+        }
+    }
+
     // ===== اتصالات Backend =====
     Component.onCompleted: {
         updateSignal.connect(myBackend.onUpdateRequest)
@@ -218,57 +271,62 @@ Rectangle {
 
         function onHeightWritten(success, message) {
             if (success) {
-                inputPanel.heightStatusText = "✅ قد ثبت شد"
+                inputPanel.heightStatusText = "✅ قد " + message + " ثبت شد"
                 inputPanel.heightStatusColor = "green"
                 Qt.callLater(updateSignal)
             } else {
                 inputPanel.heightStatusText = "❌ " + message
                 inputPanel.heightStatusColor = "red"
             }
+            heightStatusTimer.restart()  // ← در هر دو حالت تایمر استارت میشه
         }
 
         function onWeightWritten(success, message) {
             if (success) {
-                inputPanel.weightStatusText = "✅ وزن ثبت شد"
+                inputPanel.weightStatusText = "✅ وزن " + message + " ثبت شد"
                 inputPanel.weightStatusColor = "green"
                 Qt.callLater(updateSignal)
             } else {
                 inputPanel.weightStatusText = "❌ " + message
                 inputPanel.weightStatusColor = "red"
             }
+            weightStatusTimer.restart()
         }
 
         function onBloodPressureWritten(success, message) {
             if (success) {
-                inputPanel.bpStatusText = "✅ فشار خون ثبت شد"
+                inputPanel.bpStatusText = "✅ فشار خون " + message + " ثبت شد"
                 inputPanel.bpStatusColor = "green"
                 Qt.callLater(updateSignal)
             } else {
                 inputPanel.bpStatusText = "❌ " + message
                 inputPanel.bpStatusColor = "red"
             }
+            bpStatusTimer.restart()
         }
 
         function onHeartRateWritten(success, message) {
             if (success) {
-                inputPanel.heartRateStatusText = "✅ ضربان قلب ثبت شد"
+                inputPanel.heartRateStatusText = "✅ ضربان قلب " + message + " ثبت شد"
                 inputPanel.heartRateStatusColor = "green"
                 Qt.callLater(updateSignal)
             } else {
                 inputPanel.heartRateStatusText = "❌ " + message
                 inputPanel.heartRateStatusColor = "red"
             }
+            heartRateStatusTimer.restart()
         }
 
         function onBloodGlucoseWritten(success, message) {
             if (success) {
-                inputPanel.bloodGlucoseStatusText = "✅ قند خون ثبت شد"
+                inputPanel.bloodGlucoseStatusText = "✅ قند خون " + message + " ثبت شد"
                 inputPanel.bloodGlucoseStatusColor = "green"
                 Qt.callLater(updateSignal)
             } else {
                 inputPanel.bloodGlucoseStatusText = "❌ " + message
                 inputPanel.bloodGlucoseStatusColor = "red"
             }
+            bloodGlucoseStatusTimer.restart()
         }
 
         function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList) {

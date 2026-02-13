@@ -45,6 +45,11 @@ void Backend::writeHeight(double heightMeters)
     QString status = result.toString();
     bool success = !status.contains("ERROR") && !status.contains("NULL");
 
+    if(success)
+    {
+        status = QString("%1 m").arg(heightMeters);
+    }
+
     emit heightWritten(success, status);
 
 #else
@@ -84,6 +89,11 @@ void Backend::writeWeight(double weightKg)
 
     QString status = result.toString();
     bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if(success)
+    {
+        status = QString("%1 Kg").arg(weightKg);
+    }
 
     emit weightWritten(success, status);
 
@@ -141,6 +151,12 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
 
     QString status = result.toString();
     bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if(success)
+    {
+        status = QString("%1/%2 mmHg").arg(systolicMmHg).arg(diastolicMmHg);
+    }
+
     emit bloodPressureWritten(success, status);
 
 #else
@@ -181,6 +197,11 @@ void Backend::writeHeartRate(int bpm)
 
     QString status = result.toString();
     bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if(success)
+    {
+        status = QString("%1 bpm").arg(bpm);
+    }
 
     emit heartRateWritten(success, status);
 
@@ -241,6 +262,11 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
 
     QString status = result.toString();
     bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if(success)
+    {
+        status = QString("%1 mg/dl").arg(glucoseMgDl);
+    }
 
     emit bloodGlucoseWritten(success, status);
 

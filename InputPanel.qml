@@ -113,6 +113,7 @@ Rectangle {
                             heightStatus.text = "❌ مقدار نامعتبر"
                             heightStatus.color = "red"
                         }
+                        heightInput.text = ""
                     }
 
                     KeyNavigation.tab: weightInput
@@ -182,6 +183,7 @@ Rectangle {
                             weightStatus.text = "❌ مقدار نامعتبر"
                             weightStatus.color = "red"
                         }
+                        weightInput.text = ""
                     }
                     KeyNavigation.tab: systolicInput
                 }
@@ -279,6 +281,8 @@ Rectangle {
                             bpStatus.text = "❌ مقادیر نامعتبر"
                             bpStatus.color = "red"
                         }
+                        systolicInput.text = ""
+                        diastolicInput.text = ""
                     }
                 }
 
@@ -343,6 +347,7 @@ Rectangle {
                             heartRateStatus.text = "❌ مقدار نامعتبر (1-300)"
                             heartRateStatus.color = "red"
                         }
+                        heartRateInput.text = ""
                     }
                     KeyNavigation.tab: bloodGlucoseInput
                 }
@@ -551,6 +556,10 @@ Rectangle {
                             bloodGlucoseStatus.text = "❌ مقدار نامعتبر (1-600)"
                             bloodGlucoseStatus.color = "red"
                         }
+                        bloodGlucoseInput.text = ""
+                        specimenSourceCombo.currentIndex = 0
+                        mealTypeCombo.currentIndex = 0
+                        relationToMealCombo.currentIndex = 0
                     }
                 }
 
