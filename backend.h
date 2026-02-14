@@ -25,7 +25,7 @@ public:
     explicit Backend(QObject *parent = nullptr);
 
 public slots:
-    void onUpdateRequest(void);
+    void onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr);
     void writeHeight(double heightMeters);
     void writeWeight(double weightKg);
     void writeBloodPressure(double systolicMmHg, double diastolicMmHg);
@@ -41,7 +41,12 @@ private:
     QList<QPointF> bloodGlucoseList;
 
     void permissionRequest(void);
-    void readData(void);
+    bool checkPermissions(void);
+    void readHeight(QString startTime,QString endTime);
+    void readWeight(QString startTime,QString endTime);
+    void readBP(QString startTime,QString endTime);
+    void readHR(QString startTime,QString endTime);
+    void readBG(QString startTime,QString endTime);
     static QString isoStringMonthsAgo(int months);
 
 signals:

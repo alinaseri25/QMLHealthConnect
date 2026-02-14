@@ -20,7 +20,7 @@ Rectangle {
     property int statusResetDelay: 7000
 
     // ===== Signals =====
-    signal updateSignal()
+    signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr)
     signal setHeight(double value)
     signal setWeight(double value)
     signal setBloodPressure(int systolic, int diastolic)
@@ -148,7 +148,12 @@ Rectangle {
         bloodGlucoseSeries: chartView.bloodGlucoseSeries
 
         onUpdateRequested: {
-            mainView.updateSignal()
+            console.log("heightAxisVisible: " + chartView.heightAxisVisible)
+            console.log("weightAxisVisible: " + chartView.weightAxisVisible)
+            console.log("bpAxisVisible: " + chartView.bpAxisVisible)
+            console.log("bloodGlucoseAxisVisible: " + chartView.bloodGlucoseAxisVisible)
+            console.log("heartRateAxisVisible: " + chartView.heartRateAxisVisible)
+            mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
         }
     }
 
@@ -273,7 +278,7 @@ Rectangle {
             if (success) {
                 inputPanel.heightStatusText = "✅ قد " + message + " ثبت شد"
                 inputPanel.heightStatusColor = "green"
-                Qt.callLater(updateSignal)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
             } else {
                 inputPanel.heightStatusText = "❌ " + message
                 inputPanel.heightStatusColor = "red"
@@ -285,7 +290,7 @@ Rectangle {
             if (success) {
                 inputPanel.weightStatusText = "✅ وزن " + message + " ثبت شد"
                 inputPanel.weightStatusColor = "green"
-                Qt.callLater(updateSignal)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
             } else {
                 inputPanel.weightStatusText = "❌ " + message
                 inputPanel.weightStatusColor = "red"
@@ -297,7 +302,7 @@ Rectangle {
             if (success) {
                 inputPanel.bpStatusText = "✅ فشار خون " + message + " ثبت شد"
                 inputPanel.bpStatusColor = "green"
-                Qt.callLater(updateSignal)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
             } else {
                 inputPanel.bpStatusText = "❌ " + message
                 inputPanel.bpStatusColor = "red"
@@ -309,7 +314,7 @@ Rectangle {
             if (success) {
                 inputPanel.heartRateStatusText = "✅ ضربان قلب " + message + " ثبت شد"
                 inputPanel.heartRateStatusColor = "green"
-                Qt.callLater(updateSignal)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
             } else {
                 inputPanel.heartRateStatusText = "❌ " + message
                 inputPanel.heartRateStatusColor = "red"
@@ -321,7 +326,7 @@ Rectangle {
             if (success) {
                 inputPanel.bloodGlucoseStatusText = "✅ قند خون " + message + " ثبت شد"
                 inputPanel.bloodGlucoseStatusColor = "green"
-                Qt.callLater(updateSignal)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
             } else {
                 inputPanel.bloodGlucoseStatusText = "❌ " + message
                 inputPanel.bloodGlucoseStatusColor = "red"

@@ -6,9 +6,48 @@ Backend::Backend(QObject *parent)
     //readData();
 }
 
-void Backend::onUpdateRequest()
+void Backend::onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr)
 {
-    readData();
+    hList.clear();
+    wList.clear();
+    bpSystolicList.clear();
+    bpDiastolicList.clear();
+    heartRateList.clear();
+    bloodGlucoseList.clear();
+
+#ifdef Q_OS_ANDROID
+    qDebug() << "✅ Reading data...";
+
+    // ✅ ساخت بازه زمانی: یک ماه اخیر تا الان
+    QString startTime = isoStringMonthsAgo(1);
+    QString endTime   = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+
+    qDebug() << "📅 Time range:" << startTime << "→" << endTime;
+
+    if(height)
+    {
+        readHeight(startTime,endTime);
+    }
+    if(weight)
+    {
+        readWeight(startTime,endTime);
+    }
+    if(bp)
+    {
+        readBP(startTime,endTime);
+    }
+    if(bg)
+    {
+        readBG(startTime,endTime);
+    }
+    if(hr)
+    {
+        readHR(startTime,endTime);
+    }
+    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList);
+#else
+    qDebug() << "Not Android";
+#endif
 }
 
 void Backend::writeHeight(double heightMeters)
@@ -347,20 +386,13 @@ void Backend::permissionRequest()
 #endif
 }
 
-void Backend::readData()
+bool Backend::checkPermissions()
 {
-    hList.clear();
-    wList.clear();
-    bpSystolicList.clear();
-    bpDiastolicList.clear();
-    heartRateList.clear();
-    bloodGlucoseList.clear();
-
 #ifdef Q_OS_ANDROID
     QJniObject context = QNativeInterface::QAndroidApplication::context();
     if (!context.isValid()) {
         qDebug() << "❌ Context invalid";
-        return;
+        return false;
     }
 
     // ✅ Step 1: Check permissions
@@ -378,20 +410,18 @@ void Backend::readData()
         qDebug() << "⚠️ Requesting permissions...";
         permissionRequest();
         qDebug() << "💡 Grant permissions and press Read again";
-        return;
+        return false;
     }
+#else
+    qDebug() << "Not Android";
+#endif
+}
 
-    qDebug() << "✅ Reading data...";
-
-    // ✅ ساخت بازه زمانی: یک ماه اخیر تا الان
-    QString startTime = isoStringMonthsAgo(1);
-    QString endTime   = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
-
-    qDebug() << "📅 Time range:" << startTime << "→" << endTime;
-
+void Backend::readHeight(QString startTime,QString endTime)
+{
+#ifdef Q_OS_ANDROID
     QString status;
     QJniObject result;
-
     // ─────────────────────────────────────────
     // Height
     // ─────────────────────────────────────────
@@ -425,7 +455,16 @@ void Backend::readData()
             }
         }
     }
+#else
+    qDebug() << "Not Android";
+#endif
+}
 
+void Backend::readWeight(QString startTime, QString endTime)
+{
+#ifdef Q_OS_ANDROID
+    QString status;
+    QJniObject result;
     // ─────────────────────────────────────────
     // Weight
     // ─────────────────────────────────────────
@@ -459,7 +498,16 @@ void Backend::readData()
             }
         }
     }
+#else
+    qDebug() << "Not Android";
+#endif
+}
 
+void Backend::readBP(QString startTime, QString endTime)
+{
+#ifdef Q_OS_ANDROID
+    QString status;
+    QJniObject result;
     // ─────────────────────────────────────────
     // Blood Pressure
     // ─────────────────────────────────────────
@@ -497,7 +545,16 @@ void Backend::readData()
             }
         }
     }
+#else
+    qDebug() << "Not Android";
+#endif
+}
 
+void Backend::readHR(QString startTime, QString endTime)
+{
+#ifdef Q_OS_ANDROID
+    QString status;
+    QJniObject result;
     // ─────────────────────────────────────────
     // Heart Rate
     // ─────────────────────────────────────────
@@ -532,7 +589,16 @@ void Backend::readData()
             }
         }
     }
+#else
+    qDebug() << "Not Android";
+#endif
+}
 
+void Backend::readBG(QString startTime, QString endTime)
+{
+#ifdef Q_OS_ANDROID
+    QString status;
+    QJniObject result;
     // ─────────────────────────────────────────
     // Blood Glucose
     // ─────────────────────────────────────────
@@ -567,9 +633,6 @@ void Backend::readData()
             }
         }
     }
-
-    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList);
-
 #else
     qDebug() << "Not Android";
 #endif
