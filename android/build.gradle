@@ -34,6 +34,16 @@ def getVersionName() {
     return new File(projectDir.parent, 'VERSION').text.trim()
 }
 
+// ✅ محاسبه versionCode از VERSION (1.3.0 → 10300)
+def getVersionCode() {
+    def versionName = getVersionName()
+    def parts = versionName.split("\\.")
+    def major = parts[0].toInteger()
+    def minor = parts[1].toInteger()
+    def patch = parts[2].toInteger()
+    return major * 10000 + minor * 100 + patch
+}
+
 android {
     /*******************************************************
      * The following variables:
@@ -99,7 +109,7 @@ android {
         ndk.abiFilters = qtTargetAbiList.split(",")
 
         // ✅ نسخه اپلیکیشن
-        versionCode 13          // برای هر release باید +1 شود
-        versionName getVersionName()     // نسخه قابل نمایش به کاربر
+        //versionCode getVersionCode()          // برای هر release باید +1 شود
+        //versionName getVersionName()     // نسخه قابل نمایش به کاربر
     }
 }

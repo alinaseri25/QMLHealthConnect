@@ -234,15 +234,12 @@ object HealthBridge {
     }
 
     /**
-     * ✅ درخواست Permission با استفاده از Intent مستقیم (FIXED)
+     * ✅ درخواست Permission با روش Legacy (برای alpha10)
      */
     @JvmStatic
     fun requestPermissions(activity: Activity): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
-
-        // ✅ بررسی package name
-        val hcPackage = getHealthConnectPackageName()
-            ?: return "HC_NOT_INSTALLED"
+        val hcPackage = getHealthConnectPackageName() ?: return "HC_NOT_INSTALLED"
 
         return try {
             scope.launch(Dispatchers.IO) {
@@ -251,7 +248,7 @@ object HealthBridge {
                     val toRequest = PERMISSIONS - granted
 
                     if (toRequest.isEmpty()) {
-                        // log.d(TAG, "✅ All permissions already granted")
+                        Log.d(TAG, "✅ All permissions already granted")
                         withContext(Dispatchers.Main) {
                             permissionCallback?.invoke(true)
                             permissionCallback = null
@@ -259,10 +256,9 @@ object HealthBridge {
                         return@launch
                     }
 
-                    // log.d(TAG, "📋 Requesting ${toRequest.size} permissions...")
-                    // log.d(TAG, "🎯 Using HC package: $hcPackage")
+                    Log.d(TAG, "📋 Requesting ${toRequest.size} permissions...")
 
-                    // ✅ ساخت Intent درست (بدون تعریف دوباره)
+                    // ✅ روش Legacy - برای alpha10
                     val intent = Intent("androidx.health.ACTION_REQUEST_PERMISSIONS").apply {
                         setPackage(hcPackage)
                         putExtra(
@@ -271,28 +267,9 @@ object HealthBridge {
                         )
                     }
 
-                    // ✅ بررسی اینکه intent قابل حل است
-                    val resolveInfo = activity.packageManager.resolveActivity(
-                        intent,
-                        0
-                    )
-
-                    if (resolveInfo == null) {
-                        Log.e(TAG, "❌ Permission intent cannot be resolved!")
-                        Log.e(TAG, "📦 HC Package: $hcPackage")
-                        Log.e(TAG, "🔍 Try installing HC from Play Store")
-
-                        withContext(Dispatchers.Main) {
-                            permissionCallback?.invoke(false)
-                            permissionCallback = null
-                        }
-                        return@launch
-                    }
-
-                    // ✅ اجرای intent
                     withContext(Dispatchers.Main) {
                         activity.startActivityForResult(intent, REQUEST_CODE_PERMISSIONS)
-                        // log.d(TAG, "✅ Permission dialog launched!")
+                        Log.d(TAG, "✅ Permission request launched")
                     }
 
                 } catch (e: Exception) {

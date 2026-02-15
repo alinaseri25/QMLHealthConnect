@@ -17,10 +17,15 @@
 
     <!-- ✅ Queries -->
     <queries>
-        <package android:name="com.google.android.apps.healthdata"/>
-        <package android:name="com.android.healthconnect.controller"/>
-        <package android:name="com.android.vending"/>
-    </queries>
+            <!-- ✅ Health Connect packages -->
+            <package android:name="com.google.android.apps.healthdata" />
+            <package android:name="com.android.healthconnect.controller" />
+
+            <!-- ✅ Intents مورد نیاز -->
+            <intent>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent>
+        </queries>
 
     <!-- %%INSERT_FEATURES -->
     <supports-screens android:anyDensity="true" android:largeScreens="true" android:normalScreens="true" android:smallScreens="true"/>
@@ -35,13 +40,17 @@
             <!-- ✅ CRITICAL: Privacy Policy برای Android 13- -->
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <meta-data android:name="android.app.lib_name" android:value="-- %%INSERT_APP_LIB_NAME%% --"/>
             <meta-data android:name="android.app.arguments" android:value="-- %%INSERT_APP_ARGUMENTS%% --"/>
         </activity>
 
         <!-- ✅ CRITICAL: Activity-Alias برای Android 14+ -->
-        <activity-alias android:name="ViewPermissionUsageActivity" android:exported="true" android:targetActivity="org.verya.QMLHealthConnect.MainActivity" android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+        <activity-alias android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity="org.verya.QMLHealthConnect.MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
 
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>

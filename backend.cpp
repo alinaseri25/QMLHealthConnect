@@ -4,6 +4,7 @@ Backend::Backend(QObject *parent)
     : QObject{parent}
 {
     //readData();
+    checkPermissions();
 }
 
 void Backend::onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr)
@@ -16,6 +17,8 @@ void Backend::onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr)
     bloodGlucoseList.clear();
 
 #ifdef Q_OS_ANDROID
+    checkPermissions();
+
     qDebug() << "✅ Reading data...";
 
     // ✅ ساخت بازه زمانی: یک ماه اخیر تا الان
@@ -406,12 +409,15 @@ bool Backend::checkPermissions()
     qDebug() << "🔐" << permStatus;
 
     // ✅ Step 2: If not granted → request & EXIT
-    if (!permStatus.startsWith("ALL_GRANTED")) {
+    if (!permStatus.contains("ALL_GRANTED (10/10)"))
+    {
         qDebug() << "⚠️ Requesting permissions...";
         permissionRequest();
         qDebug() << "💡 Grant permissions and press Read again";
         return false;
     }
+
+    return true;
 #else
     qDebug() << "Not Android";
 #endif

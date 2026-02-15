@@ -166,6 +166,8 @@ ChartView {
         color: themeManager.chartHeightColor
         width: 2
 
+        pointsVisible: true
+
         Behavior on color { ColorAnimation { duration: 300 } }
     }
 
@@ -177,6 +179,8 @@ ChartView {
         axisY: axisY2
         color: themeManager.chartWeightColor
         width: 2
+
+        pointsVisible: true
 
         Behavior on color { ColorAnimation { duration: 300 } }
     }
@@ -190,6 +194,8 @@ ChartView {
         axisY: axisY3
         color: themeManager.chartBPSystolicColor
 
+        pointsVisible: true
+
         Behavior on color { ColorAnimation { duration: 300 } }
     }
 
@@ -201,6 +207,8 @@ ChartView {
         axisX: axisX
         axisY: axisY3
         color: themeManager.chartBPDiastolicColor
+
+        pointsVisible: true
 
         Behavior on color { ColorAnimation { duration: 300 } }
     }
@@ -214,6 +222,8 @@ ChartView {
         color: themeManager.chartHeartRateColor
         width: 2
 
+        pointsVisible: true
+
         Behavior on color { ColorAnimation { duration: 300 } }
     }
 
@@ -225,6 +235,8 @@ ChartView {
         axisY: axisY6
         color: themeManager.chartBloodGlucoseColor
         width: 2
+
+        pointsVisible: true
 
         Behavior on color { ColorAnimation { duration: 300 } }
     }
@@ -259,7 +271,7 @@ ChartView {
             if (closestPoint.found) {
                 var dateStr = Qt.formatDateTime(new Date(closestPoint.x), "yyyy/MM/dd hh:mm")
                 chartTooltip.show(
-                    mouseX,
+                    mouseX + 40,
                     mouseY,
                     closestPoint.seriesName + " - " + dateStr,
                     closestPoint.value.toFixed(2) + " " + closestPoint.unit

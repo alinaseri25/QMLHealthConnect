@@ -1,7 +1,19 @@
 cmake_minimum_required(VERSION 3.16)
 
-file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" APP_VERSION)
-project(QMLHealthConnect VERSION ${APP_VERSION} LANGUAGES CXX)
+# ✅ خواندن VERSION از فایل
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" VERSION_STRING)
+string(STRIP "${VERSION_STRING}" VERSION_STRING)
+
+# ✅ تجزیه version به اجزای MAJOR.MINOR.PATCH
+string(REPLACE "." ";" VERSION_LIST ${VERSION_STRING})
+list(GET VERSION_LIST 0 VERSION_MAJOR)
+list(GET VERSION_LIST 1 VERSION_MINOR)
+list(GET VERSION_LIST 2 VERSION_PATCH)
+
+# ✅ محاسبه versionCode (مثلاً: 1.3.0 → 10300)
+math(EXPR VERSION_CODE "${VERSION_MAJOR} * 10000 + ${VERSION_MINOR} * 100 + ${VERSION_PATCH}")
+
+project(QMLHealthConnect VERSION ${VERSION_STRING} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -56,10 +68,23 @@ target_link_libraries(QMLHealthConnect PRIVATE
 
 if(ANDROID)
     set_target_properties(QMLHealthConnect PROPERTIES
-        QT_ANDROID_PACKAGE_SOURCE_DIR
-            ${CMAKE_CURRENT_SOURCE_DIR}/android
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+        QT_ANDROID_VERSION_NAME "${VERSION_STRING}"
+        QT_ANDROID_VERSION_CODE "${VERSION_CODE}"
     )
+
+    # ✅ پیام debug
+    message(STATUS "Android Version Name: ${VERSION_STRING}")
+    message(STATUS "Android Version Code: ${VERSION_CODE}")
 endif()
+
+set_target_properties(QMLHealthConnect PROPERTIES
+    MACOSX_BUNDLE_GUI_IDENTIFIER org.verya.QMLHealthConnect
+    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    MACOSX_BUNDLE TRUE
+    WIN32_EXECUTABLE TRUE
+)
 
 include(GNUInstallDirs)
 install(TARGETS QMLHealthConnect
