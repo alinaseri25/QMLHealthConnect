@@ -42,8 +42,8 @@ qt6_add_resources(QMLHealthConnect "qmlchartsgallery"
         ChartControlButtons.qml
         InputPanel.qml
         Divider.qml
-        ChartTooltip.qml
         ChartInteractionZone.qml
+        GenericTooltip.qml
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

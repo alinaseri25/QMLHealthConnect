@@ -32,6 +32,13 @@ Rectangle {
         id: chartView
         themeManager: appTheme
 
+        // ✅ یک tooltip سراسری برای کل برنامه
+        GenericTooltip {
+            id: globalTooltip
+            z: 10000
+            parent: root  // مهم: parent باید root باشه
+        }
+
         x: 0
         y: 50
         width: parent.width - inputPanel.width
@@ -52,7 +59,7 @@ Rectangle {
         y: chartView.y + chartView.plotArea.y
         width: chartView.plotArea.width
         height: chartView.plotArea.height
-        z: 0  // پشت tooltip
+        z: 5  // بالاتر از همه چیز
 
         xAxis: chartView.xAxis
         yAxes: [
@@ -63,6 +70,9 @@ Rectangle {
             chartView.bgAxis
         ]
         chartView: chartView
+        tooltipEnabled: true
+
+        tooltip: globalTooltip
     }
 
     // ✅ ناحیه محور X (زیر چارت)

@@ -2,63 +2,58 @@ import QtQuick
 
 Rectangle {
     id: root
-
-    // ارجاعات به محورها
-    property var xAxis
-    property var yAxes: []  // تمام محورهای Y
-    property var chartView
-
     color: "transparent"
 
-    // برای تشخیص جهت حرکت دو انگشتی
-    property real initialHorizontalSpan: 0
-    property real initialVerticalSpan: 0
-    property bool isHorizontalPinch: false
-    property bool isVerticalPinch: false
+    property var xAxis
+    property var yAxes: []
+    property var chartView
+    property bool tooltipEnabled: true
+
+    // ✅ tooltip از بیرون تزریق می‌شود
+    property var tooltip: null
+
+    // ✅ آستانه تشخیص drag
+    property real dragThreshold: 10
+
+    // Pinch state
+    property real initialXRange
+    property var initialYRanges: []
+    property real startHSpan
+    property real startVSpan
+    property bool pinchHorizontal
+    property bool pinchVertical
 
     PinchArea {
         anchors.fill: parent
 
-        property real initialXRange
-        property var initialYRanges: []
+        onPinchStarted: (p) => {
+            if (tooltip) tooltip.hide()
 
-        onPinchStarted: (pinch) => {
-            // ذخیره range های اولیه
             initialXRange = xAxis.max.getTime() - xAxis.min.getTime()
             initialYRanges = []
-            for (let i = 0; i < yAxes.length; i++) {
-                initialYRanges.push(yAxes[i].max - yAxes[i].min)
-            }
+            for (let a of yAxes)
+                initialYRanges.push(a.max - a.min)
 
-            // محاسبه جهت حرکت اولیه
-            initialHorizontalSpan = Math.abs(pinch.point1.x - pinch.point2.x)
-            initialVerticalSpan = Math.abs(pinch.point1.y - pinch.point2.y)
-
-            // تشخیص جهت غالب
-            isHorizontalPinch = initialHorizontalSpan > initialVerticalSpan
-            isVerticalPinch = initialVerticalSpan > initialHorizontalSpan
+            startHSpan = Math.abs(p.point1.x - p.point2.x)
+            startVSpan = Math.abs(p.point1.y - p.point2.y)
+            pinchHorizontal = startHSpan > startVSpan
+            pinchVertical = startVSpan > startHSpan
         }
 
-        onPinchUpdated: (pinch) => {
-            // محاسبه تغییرات افقی و عمودی
-            let currentHorizontalSpan = Math.abs(pinch.point1.x - pinch.point2.x)
-            let currentVerticalSpan = Math.abs(pinch.point1.y - pinch.point2.y)
-
-            // اگر حرکت غالباً افقیه → زوم محور X
-            if (isHorizontalPinch) {
-                let scaleX = initialHorizontalSpan / currentHorizontalSpan
-                let centerX = (xAxis.max.getTime() + xAxis.min.getTime()) / 2
-                xAxis.min = new Date(centerX - (initialXRange * scaleX) / 2)
-                xAxis.max = new Date(centerX + (initialXRange * scaleX) / 2)
+        onPinchUpdated: (p) => {
+            if (pinchHorizontal) {
+                let scale = startHSpan / Math.abs(p.point1.x - p.point2.x)
+                let c = (xAxis.max.getTime() + xAxis.min.getTime()) / 2
+                xAxis.min = new Date(c - initialXRange * scale / 2)
+                xAxis.max = new Date(c + initialXRange * scale / 2)
             }
 
-            // اگر حرکت غالباً عمودیه → زوم محورهای Y
-            if (isVerticalPinch) {
-                let scaleY = initialVerticalSpan / currentVerticalSpan
+            if (pinchVertical) {
+                let scale = startVSpan / Math.abs(p.point1.y - p.point2.y)
                 for (let i = 0; i < yAxes.length; i++) {
-                    let centerY = (yAxes[i].max + yAxes[i].min) / 2
-                    yAxes[i].min = centerY - (initialYRanges[i] * scaleY) / 2
-                    yAxes[i].max = centerY + (initialYRanges[i] * scaleY) / 2
+                    let c = (yAxes[i].max + yAxes[i].min) / 2
+                    yAxes[i].min = c - initialYRanges[i] * scale / 2
+                    yAxes[i].max = c + initialYRanges[i] * scale / 2
                 }
             }
         }
@@ -66,68 +61,145 @@ Rectangle {
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
-            acceptedButtons: Qt.LeftButton
+            acceptedButtons: Qt.LeftButton | Qt.NoButton
 
-            property real dragStartX: 0
-            property real dragStartY: 0
+            property real sx
+            property real sy
             property bool isDragging: false
 
-            onPressed: (mouse) => {
-                dragStartX = mouse.x
-                dragStartY = mouse.y
-                isDragging = true
+            onPressed: (m) => {
+                if (tooltip) tooltip.hide()
+                sx = m.x
+                sy = m.y
+                isDragging = false  // ✅ فقط موقع شروع حرکت واقعی true می‌شود
             }
 
-            onReleased: {
+            onReleased: (m) => {
+                // ✅ اگر drag نشد = Tap بوده
+                if (!isDragging && tooltipEnabled) {
+                    updateTooltip(m.x, m.y)
+                }
                 isDragging = false
             }
 
-            onPositionChanged: (mouse) => {
-                if (isDragging && pressed) {
-                    let dx = mouse.x - dragStartX
-                    let dy = mouse.y - dragStartY
+            onPositionChanged: (m) => {
+                let dx = m.x - sx
+                let dy = m.y - sy
 
-                    // اگر حرکت افقی بیشتر باشه → Pan محور X
+                // ✅ تشخیص drag واقعی
+                if (pressed && !isDragging &&
+                    (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
+                    isDragging = true
+                    if (tooltip) tooltip.hide()
+                }
+
+                if (pressed && isDragging) {
+                    // ✅ Drag logic
                     if (Math.abs(dx) > Math.abs(dy)) {
-                        let xRange = xAxis.max.getTime() - xAxis.min.getTime()
-                        let xShift = -(dx / width) * xRange
-                        xAxis.min = new Date(xAxis.min.getTime() + xShift)
-                        xAxis.max = new Date(xAxis.max.getTime() + xShift)
-                        dragStartX = mouse.x
-                    }
-                    // اگر حرکت عمودی بیشتر باشه → Pan محورهای Y
-                    else {
-                        for (let i = 0; i < yAxes.length; i++) {
-                            let yRange = yAxes[i].max - yAxes[i].min
-                            let yShift = (dy / height) * yRange
-                            yAxes[i].min += yShift
-                            yAxes[i].max += yShift
+                        let r = xAxis.max.getTime() - xAxis.min.getTime()
+                        let s = -(dx / width) * r
+                        xAxis.min = new Date(xAxis.min.getTime() + s)
+                        xAxis.max = new Date(xAxis.max.getTime() + s)
+                        sx = m.x
+                    } else {
+                        for (let a of yAxes) {
+                            let r = a.max - a.min
+                            let s = (dy / height) * r
+                            a.min += s
+                            a.max += s
                         }
-                        dragStartY = mouse.y
+                        sy = m.y
                     }
+                }
+                // ✅ Hover برای Desktop
+                else if (!pressed && tooltipEnabled) {
+                    updateTooltip(m.x, m.y)
                 }
             }
 
-            // Wheel برای زوم (هم X هم Y با modifier key)
-            onWheel: (wheel) => {
-                let zoomFactor = wheel.angleDelta.y > 0 ? 0.9 : 1.1
+            onExited: {
+                if (tooltip) tooltip.hide()
+            }
 
-                // اگر Ctrl فشرده نشده → زوم محور X
-                if (!(wheel.modifiers & Qt.ControlModifier)) {
-                    let xRange = xAxis.max.getTime() - xAxis.min.getTime()
-                    let xCenter = (xAxis.max.getTime() + xAxis.min.getTime()) / 2
-                    xAxis.min = new Date(xCenter - (xRange * zoomFactor) / 2)
-                    xAxis.max = new Date(xCenter + (xRange * zoomFactor) / 2)
+            onWheel: (w) => {
+                if (tooltip) tooltip.hide()
+
+                let z = w.angleDelta.y > 0 ? 0.9 : 1.1
+
+                if (w.modifiers & Qt.ControlModifier) {
+                    for (let a of yAxes) {
+                        let r = a.max - a.min
+                        let c = (a.max + a.min) / 2
+                        a.min = c - r * z / 2
+                        a.max = c + r * z / 2
+                    }
+                } else {
+                    let r = xAxis.max.getTime() - xAxis.min.getTime()
+                    let c = (xAxis.max.getTime() + xAxis.min.getTime()) / 2
+                    xAxis.min = new Date(c - r * z / 2)
+                    xAxis.max = new Date(c + r * z / 2)
                 }
-                // اگر Ctrl فشرده شده → زوم محورهای Y
-                else {
-                    for (let i = 0; i < yAxes.length; i++) {
-                        let yRange = yAxes[i].max - yAxes[i].min
-                        let yCenter = (yAxes[i].max + yAxes[i].min) / 2
-                        yAxes[i].min = yCenter - (yRange * zoomFactor) / 2
-                        yAxes[i].max = yCenter + (yRange * zoomFactor) / 2
+            }
+
+            // ✅ تابع tooltip - حالا از tooltip سراسری استفاده می‌کند
+            function updateTooltip(mouseX, mouseY) {
+                if (!chartView || !tooltip) return
+
+                let chartPoint = chartView.mapToValue(Qt.point(mouseX, mouseY), chartView.heightSeries)
+                let closestPoint = findClosestPoint(chartPoint.x)
+
+                if (closestPoint.found) {
+                    let dateStr = Qt.formatDateTime(new Date(closestPoint.x), "yyyy/MM/dd hh:mm")
+
+                    // ✅ استفاده از API جدید
+                    tooltip.showChart(
+                        root.mapToItem(tooltip.parent, mouseX, mouseY).x + 15,
+                        root.mapToItem(tooltip.parent, mouseX, mouseY).y,
+                        closestPoint.seriesName + " - " + dateStr,
+                        closestPoint.value.toFixed(2) + " " + closestPoint.unit
+                    )
+                } else {
+                    tooltip.hide()
+                }
+            }
+
+            // ✅ منطق findClosestPoint داخلی (جلوگیری از خطای function not found)
+            function findClosestPoint(targetX) {
+                if (!chartView) return { found: false }
+
+                let series = [
+                    { data: chartView.heightSeries, name: "قد", unit: "cm", axis: chartView.heightAxis },
+                    { data: chartView.weightSeries, name: "وزن", unit: "kg", axis: chartView.weightAxis },
+                    { data: chartView.bpSystolicSeries, name: "فشار سیستولیک", unit: "mmHg", axis: chartView.bpAxis },
+                    { data: chartView.bpDiastolicSeries, name: "فشار دیاستولیک", unit: "mmHg", axis: chartView.bpAxis },
+                    { data: chartView.heartRateSeries, name: "ضربان قلب", unit: "bpm", axis: chartView.y5Axis },
+                    { data: chartView.bloodGlucoseSeries, name: "قند خون", unit: "mg/dL", axis: chartView.y6Axis }
+                ]
+
+                let closest = null
+                let minDist = Number.MAX_VALUE
+
+                for (let s of series) {
+                    if (!s.data.visible) continue
+
+                    for (let i = 0; i < s.data.count; i++) {
+                        let pt = s.data.at(i)
+                        let dist = Math.abs(pt.x - targetX)
+
+                        if (dist < minDist) {
+                            minDist = dist
+                            closest = {
+                                found: true,
+                                x: pt.x,
+                                value: pt.y,
+                                seriesName: s.name,
+                                unit: s.unit
+                            }
+                        }
                     }
                 }
+
+                return closest || { found: false }
             }
         }
     }
