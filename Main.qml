@@ -127,11 +127,6 @@ Rectangle {
         bloodGlucoseSeries: chartView.bloodGlucoseSeries
 
         onUpdateRequested: {
-            console.log("heightAxisVisible: " + chartView.heightAxisVisible)
-            console.log("weightAxisVisible: " + chartView.weightAxisVisible)
-            console.log("bpAxisVisible: " + chartView.bpAxisVisible)
-            console.log("bloodGlucoseAxisVisible: " + chartView.bloodGlucoseAxisVisible)
-            console.log("heartRateAxisVisible: " + chartView.heartRateAxisVisible)
             mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
         }
     }
