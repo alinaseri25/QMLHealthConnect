@@ -11,19 +11,24 @@ ChartView {
     property alias bpDiastolicSeries: spLine4
     property alias heartRateSeries: spLine5
     property alias bloodGlucoseSeries: spLine6
+    property alias oxygenSaturationSeries: spLine7
+
+    // ✅ Alias برای دسترسی به محورها
     property alias xAxis: axisX
     property alias heightAxis: axisY1
     property alias weightAxis: axisY2
     property alias bpAxis: axisY3
     property alias hrAxis: axisY5
     property alias bgAxis: axisY6
+    property alias spo2Axis: axisY7
 
     // ✅ Property‌های جدید برای کنترل visibility
-    property bool heightAxisVisible: true
-    property bool weightAxisVisible: true
-    property bool bpAxisVisible: true
-    property bool heartRateAxisVisible: true
-    property bool bloodGlucoseAxisVisible: true
+    property bool heightAxisVisible: false
+    property bool weightAxisVisible: false
+    property bool bpAxisVisible: false
+    property bool heartRateAxisVisible: false
+    property bool bloodGlucoseAxisVisible: false
+    property bool oxygenSaturationAxisVisible: false
 
     property bool tooltipEnabled: true
 
@@ -155,6 +160,24 @@ ChartView {
         Behavior on gridLineColor { ColorAnimation { duration: 300 } }
     }
 
+    ValueAxis {
+        id: axisY7
+        min: 85.0        // ✅ حداقل: 85% (زیر این مقدار بحرانی است)
+        max: 100.0       // ✅ حداکثر: 100% (اشباع کامل)
+        tickCount: 4     // ✅ 85, 90, 95, 100
+        labelFormat: "%.1f"
+        titleText: "اشباع اکسیژن (%)"  // ✅ عنوان فارسی
+        visible: chartView.oxygenSaturationAxisVisible
+
+        color: themeManager.chartOxygenSaturationColor  // ✅ رنگ از ThemeManager
+        labelsColor: themeManager.axisLabelColor
+        gridLineColor: themeManager.gridColor
+
+        Behavior on color { ColorAnimation { duration: 300 } }
+        Behavior on labelsColor { ColorAnimation { duration: 300 } }
+        Behavior on gridLineColor { ColorAnimation { duration: 300 } }
+    }
+
     // ===== سری‌های داده =====
 
     LineSeries {
@@ -241,6 +264,19 @@ ChartView {
         Behavior on color { ColorAnimation { duration: 300 } }
     }
 
+    LineSeries {
+        id: spLine7
+        name: "اشباع اکسیژن"  // ✅ نام فارسی
+        useOpenGL: true
+        axisX: axisX
+        axisY: axisY7
+        color: themeManager.chartOxygenSaturationColor  // ✅ رنگ از ThemeManager
+        width: 2
+        pointsVisible: true
+
+        Behavior on color { ColorAnimation { duration: 300 } }
+    }
+
     // ===== 🔥 تابع اصلی: پیدا کردن نزدیک‌ترین نقطه =====
     function findClosestPoint(targetX) {
         var result = {
@@ -260,7 +296,8 @@ ChartView {
                     { series: spLine3, name: "فشار سیستولیک", unit: "mmHg", visible: bpAxisVisible },
                     { series: spLine4, name: "فشار دیاستولیک", unit: "mmHg", visible: bpAxisVisible },
                     { series: spLine5, name: "ضربانلب", unit: "bpm", visible: heartRateAxisVisible },
-                    { series: spLine6, name: "قند خون", unit: "mg/dL", visible: bloodGlucoseAxisVisible }
+                    { series: spLine6, name: "قند خون", unit: "mg/dL", visible: bloodGlucoseAxisVisible },
+                    { series: spLine7, name: "اشباع اکسیژن", unit: "%", visible: oxygenSaturationAxisVisible }
                 ]
 
         for (var i = 0; i < seriesList.length; i++) {

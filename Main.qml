@@ -20,12 +20,13 @@ Rectangle {
     property int statusResetDelay: 7000
 
     // ===== Signals =====
-    signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr)
+    signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation)
     signal setHeight(double value)
     signal setWeight(double value)
     signal setBloodPressure(int systolic, int diastolic)
     signal setHeartRate(double bpm)
     signal setBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
+    signal setOxygenSaturation(double value)
 
     // ===== نمودار اصلی =====
     HealthChartView {
@@ -67,7 +68,8 @@ Rectangle {
             chartView.weightAxis,
             chartView.bpAxis,
             chartView.hrAxis,
-            chartView.bgAxis
+            chartView.bgAxis,
+            chartView.spo2Axis
         ]
         chartView: chartView
         tooltipEnabled: true
@@ -104,7 +106,8 @@ Rectangle {
             chartView.weightAxis,
             chartView.bpAxis,
             chartView.hrAxis,
-            chartView.bgAxis
+            chartView.bgAxis,
+            chartView.spo2Axis
         ]
         axisType: "y"
         chartView: chartView
@@ -125,9 +128,11 @@ Rectangle {
         bpDiastolicSeries: chartView.bpDiastolicSeries
         heartRateSeries: chartView.heartRateSeries
         bloodGlucoseSeries: chartView.bloodGlucoseSeries
+        oxygenSaturationSeries: chartView.oxygenSaturationSeries
 
         onUpdateRequested: {
-            mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
+            mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,
+                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationSeries)
         }
     }
 
@@ -170,6 +175,10 @@ Rectangle {
 
         onBloodGlucoseSubmitted: (glucoseMgDl, specimenSource, mealType, relationToMeal) => {
             mainView.setBloodGlucose(glucoseMgDl, specimenSource, mealType, relationToMeal)
+        }
+
+        onOxygenSaturationSubmitted:(value)=>{
+            setOxygenSaturation(value)
         }
     }
 
@@ -233,6 +242,16 @@ Rectangle {
         }
     }
 
+    Timer {
+        id: oxygenSaturationTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.oxygenSaturationStatusText = ""
+            inputPanel.oxygenSaturationStatusColor = "gray"
+        }
+    }
+
     // ===== اتصالات Backend =====
     Component.onCompleted: {
         updateSignal.connect(myBackend.onUpdateRequest)
@@ -241,6 +260,7 @@ Rectangle {
         setBloodPressure.connect(myBackend.writeBloodPressure)
         setHeartRate.connect(myBackend.writeHeartRate)
         setBloodGlucose.connect(myBackend.writeBloodGlucose)
+        setOxygenSaturation.connect(myBackend.writeOxygenSaturation)
 
         controlButtons.setInitialVisibility(false,true,true,false,true)
     }
@@ -252,7 +272,8 @@ Rectangle {
             if (success) {
                 inputPanel.heightStatusText = "✅ قد " + message + " ثبت شد"
                 inputPanel.heightStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
             } else {
                 inputPanel.heightStatusText = "❌ " + message
                 inputPanel.heightStatusColor = "red"
@@ -264,7 +285,8 @@ Rectangle {
             if (success) {
                 inputPanel.weightStatusText = "✅ وزن " + message + " ثبت شد"
                 inputPanel.weightStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
             } else {
                 inputPanel.weightStatusText = "❌ " + message
                 inputPanel.weightStatusColor = "red"
@@ -276,7 +298,8 @@ Rectangle {
             if (success) {
                 inputPanel.bpStatusText = "✅ فشار خون " + message + " ثبت شد"
                 inputPanel.bpStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
             } else {
                 inputPanel.bpStatusText = "❌ " + message
                 inputPanel.bpStatusColor = "red"
@@ -288,7 +311,8 @@ Rectangle {
             if (success) {
                 inputPanel.heartRateStatusText = "✅ ضربان قلب " + message + " ثبت شد"
                 inputPanel.heartRateStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
             } else {
                 inputPanel.heartRateStatusText = "❌ " + message
                 inputPanel.heartRateStatusColor = "red"
@@ -300,7 +324,8 @@ Rectangle {
             if (success) {
                 inputPanel.bloodGlucoseStatusText = "✅ قند خون " + message + " ثبت شد"
                 inputPanel.bloodGlucoseStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible)
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
             } else {
                 inputPanel.bloodGlucoseStatusText = "❌ " + message
                 inputPanel.bloodGlucoseStatusColor = "red"
@@ -308,13 +333,27 @@ Rectangle {
             bloodGlucoseStatusTimer.restart()
         }
 
-        function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList) {
+        function onOxygenSaturationWritten(success, message) {
+            if (success) {
+                inputPanel.oxygenSaturationStatusText = "✅ اکسیژن خون " + message + " ثبت شد"
+                inputPanel.oxygenSaturationStatusColor = "green"
+                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+            } else {
+                inputPanel.oxygenSaturationStatusText = "❌ " + message
+                inputPanel.oxygenSaturationStatusColor = "red"
+            }
+            oxygenSaturationTimer.restart()
+        }
+
+        function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList, oxygenSaturationList) {
             chartView.heightSeries.clear()
             chartView.weightSeries.clear()
             chartView.bpSystolicSeries.clear()
             chartView.bpDiastolicSeries.clear()
             chartView.heartRateSeries.clear()
             chartView.bloodGlucoseSeries.clear()
+            chartView.oxygenSaturationSeries.clear()
 
             // ✅ تعریف متغیرها با مقادیر پیش‌فرض
             let minH = 140, maxH = 200
@@ -322,14 +361,40 @@ Rectangle {
             let minBP = 60, maxBP = 140
             let minHR = 50, maxHR = 120
             let minBG = 70, maxBG = 200
+            let minSpo2 = 85, maxSpo2 = 100
 
             // محاسبه minTime
             let minTime = Number.MAX_VALUE
-            if (hList.length > 0 && hList[0].x < minTime) minTime = hList[0].x
-            if (wList.length > 0 && wList[0].x < minTime) minTime = wList[0].x
-            if (bpSystolicList.length > 0 && bpSystolicList[0].x < minTime) minTime = bpSystolicList[0].x
-            if (heartRateList.length > 0 && heartRateList[0].x < minTime) minTime = heartRateList[0].x
-            if (bloodGlucoseList.length > 0 && bloodGlucoseList[0].x < minTime) minTime = bloodGlucoseList[0].x
+            if (hList.length > 0)
+            {
+                if(hList[0].x < minTime) minTime = hList[0].x
+                minH = hList[0].y - 10
+                maxH = hList[0].y + 10
+            }
+            if (wList.length > 0)
+            {
+                if(wList[0].x < minTime) minTime = wList[0].x
+                minW = wList[0].y - 1
+                maxW = wList[0].y + 1
+            }
+            if (bpSystolicList.length > 0)
+            {
+                if(bpSystolicList[0].x < minTime) minTime = bpSystolicList[0].x
+            }
+            if (heartRateList.length > 0)
+            {
+                if(heartRateList[0].x < minTime) minTime = heartRateList[0].x
+            }
+            if (bloodGlucoseList.length > 0)
+            {
+                if(bloodGlucoseList[0].x < minTime) minTime = bloodGlucoseList[0].x
+            }
+            if (oxygenSaturationList.length > 0 && oxygenSaturationList[0].x < minTime)
+            {
+                minTime = oxygenSaturationList[0].x
+                minSpo2 = oxygenSaturationList[0].y - 1
+                maxSpo2 = oxygenSaturationList[0].y + 1
+            }
 
             if (hList.length > 0) {
                 minH = (hList[0].y * 100) - 10
@@ -350,6 +415,10 @@ Rectangle {
             if (bloodGlucoseList.length > 0) {
                 minBG = bloodGlucoseList[0].y - 1
                 maxBG = bloodGlucoseList[0].y + 1
+            }
+            if (oxygenSaturationList.length > 0) {
+                minH = (oxygenSaturationList[0].y * 100) - 10
+                maxH = (oxygenSaturationList[0].y * 100) + 10
             }
 
             // پردازش داده‌های قد
@@ -395,6 +464,15 @@ Rectangle {
                 if (bg > maxBG) maxBG = bg + 2
             }
 
+            console.log("oxygenSaturationList siz : " + oxygenSaturationList.length)
+            // پردازش داده‌های SPO2
+            for (let i = 0; i < oxygenSaturationList.length; i++) {
+                let Spoi = oxygenSaturationList[i].y
+                chartView.oxygenSaturationSeries.append(oxygenSaturationList[i].x, Spoi)
+                if (Spoi < minSpo2) minSpo2 = Spoi - 1
+                if (Spoi > maxSpo2) maxSpo2 = Spoi + 1
+            }
+
             // تنظیم محدوده محورها
             chartView.heightAxis.min = minH
             chartView.heightAxis.max = maxH
@@ -411,6 +489,9 @@ Rectangle {
 
             chartView.bgAxis.min = minBG
             chartView.bgAxis.max = maxBG
+
+            chartView.spo2Axis.min = minSpo2
+            chartView.spo2Axis.max = maxSpo2
 
             chartView.xAxis.min = new Date(minTime)
             chartView.xAxis.max = new Date(Date.now())

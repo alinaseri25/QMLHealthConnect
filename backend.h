@@ -25,13 +25,14 @@ public:
     explicit Backend(QObject *parent = nullptr);
 
 public slots:
-    void onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr);
+    void onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr,bool spo2);
     void writeHeight(double heightMeters);
     void writeWeight(double weightKg);
     void writeBloodPressure(double systolicMmHg, double diastolicMmHg);
     void writeHeartRate(int bpm);
     void writeBloodGlucose(double glucoseMgDl, int specimenSource = 2,
                            int mealType = 0, int relationToMeal = 0);
+    void writeOxygenSaturation(double percentage);
 
 private:
     QList<QPointF> hList,wList;
@@ -39,6 +40,7 @@ private:
     QList<QPointF> bpDiastolicList;
     QList<QPointF> heartRateList;
     QList<QPointF> bloodGlucoseList;
+    QList<QPointF> oxygenSaturationList;
 
     void permissionRequest(void);
     bool checkPermissions(void);
@@ -47,17 +49,22 @@ private:
     void readBP(QString startTime,QString endTime);
     void readHR(QString startTime,QString endTime);
     void readBG(QString startTime,QString endTime);
+    void readOxygenSaturation(QString startTime, QString endTime);
     static QString isoStringMonthsAgo(int months);
 
 signals:
-    void newDataRead(QList<QPointF> hList, QList<QPointF> wList,
+    void newDataRead(QList<QPointF> hList,
+                     QList<QPointF> wList,
                      QList<QPointF> bpSystolicList, QList<QPointF> bpDiastolicList,
-                     QList<QPointF> heartRateList, QList<QPointF> bloodGlucoseList);
+                     QList<QPointF> heartRateList,
+                     QList<QPointF> bloodGlucoseList,
+                     QList<QPointF> oxygenSaturationList);
     void heightWritten(bool success, QString message);
     void weightWritten(bool success, QString message);
     void bloodPressureWritten(bool success, QString message);
     void heartRateWritten(bool success, QString message);
     void bloodGlucoseWritten(bool success, QString message);
+    void oxygenSaturationWritten(bool success, QString message);
 };
 
 #endif // BACKEND_H

@@ -15,6 +15,7 @@ Rectangle {
     signal bloodPressureSubmitted(int systolic, int diastolic)
     signal heartRateSubmitted(double bpm)
     signal bloodGlucoseSubmitted(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
+    signal oxygenSaturationSubmitted(double value)
 
     // Properties برای نمایش وضعیت
     property alias heightStatusText: heightStatus.text
@@ -27,6 +28,8 @@ Rectangle {
     property alias heartRateStatusColor: heartRateStatus.color
     property alias bloodGlucoseStatusText: bloodGlucoseStatus.text
     property alias bloodGlucoseStatusColor: bloodGlucoseStatus.color
+    property alias oxygenSaturationStatusText: oxygenSaturationStatus.text
+    property alias oxygenSaturationStatusColor: oxygenSaturationStatus.color
 
     width: expanded ? 330 : 0
     height: parent.height
@@ -574,6 +577,144 @@ Rectangle {
 
             Divider {
                 themeManager: root.themeManager
+            }
+
+            // ===== بخش اشباع اکسیژن خون (SpO₂) =====
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    text: "🫁 اشباع اکسیژن خون (SpO₂ %)"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: root.themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                TextField {
+                    id: oxygenSaturationInput
+                    width: parent.width
+                    placeholderText: "مثال: 98"
+                    placeholderTextColor: root.themeManager.inputPlaceholderColor
+
+                    background: Rectangle {
+                        color: root.themeManager.inputBackgroundColor
+                        border.color: root.themeManager.inputBorderColor
+                        border.width: 1
+                        radius: 4
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                        Behavior on border.color { ColorAnimation { duration: 300 } }
+                    }
+
+                    color: root.themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                    KeyNavigation.tab: oxygenSaturationRegister
+
+                    // اعتبارسنجی ورودی: فقط اعداد و نقطه
+                    validator: RegularExpressionValidator {
+                        regularExpression: /^(100(\.0{1,2})?|[1-9]?\d(\.\d{1,2})?)$/
+                    }
+                }
+
+                // راهنما برای محدوده طبیعی
+                Text {
+                    text: "محدوده طبیعی: 95-100%"
+                    font.pixelSize: 12
+                    color: root.themeManager.secondaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                CButton {
+                    id: oxygenSaturationRegister
+                    text: "ثبت اشباع اکسیژن"
+                    width: parent.width
+                    height: 40
+                    themeManager: root.themeManager
+
+                    onClicked: {
+                        let value = parseFloat(oxygenSaturationInput.text)
+
+                        // اعتبارسنجی دقیق
+                        if (!isNaN(value) && value >= 0 && value <= 100) {
+                            root.oxygenSaturationSubmitted(value)
+                            oxygenSaturationInput.text = ""
+
+                            // پیام هشدار برای مقادیر غیرطبیعی
+                            if (value < 90) {
+                                oxygenSaturationStatus.text = "⚠️ هشدار: مقدار پایین‌تر از حد طبیعی!"
+                                oxygenSaturationStatus.color = "red"
+                            } else if (value < 95) {
+                                oxygenSaturationStatus.text = "⚡ توجه: مقدار کمتر از حد مطلوب"
+                                oxygenSaturationStatus.color = "orange"
+                            }
+                        } else {
+                            oxygenSaturationStatus.text = "❌ مقدار باید بین 0 تا 100 باشد"
+                            oxygenSaturationStatus.color = "red"
+                        }
+                    }
+
+                    // کلید Enter برای ثبت سریع
+                    Keys.onReturnPressed: clicked()
+                    Keys.onEnterPressed: clicked()
+                }
+
+                Text {
+                    id: oxygenSaturationStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+
+                // اطلاعات اضافی
+                Rectangle {
+                    width: parent.width
+                    height: infoColumn.height + 16
+                    color: root.themeManager.infoBoxColor || Qt.rgba(0.5, 0.7, 1.0, 0.1)
+                    radius: 6
+                    border.color: root.themeManager.infoBorderColor || Qt.rgba(0.3, 0.5, 0.8, 0.3)
+                    border.width: 1
+
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                    Behavior on border.color { ColorAnimation { duration: 300 } }
+
+                    Column {
+                        id: infoColumn
+                        anchors.centerIn: parent
+                        width: parent.width - 16
+                        spacing: 4
+
+                        Text {
+                            text: "ℹ️ راهنما:"
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: root.themeManager.primaryTextColor
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+
+                        Text {
+                            text: "• 95-100%: طبیعی"
+                            font.pixelSize: 10
+                            color: root.themeManager.secondaryTextColor
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+
+                        Text {
+                            text: "• 90-95%: نیاز به توجه"
+                            font.pixelSize: 10
+                            color: root.themeManager.secondaryTextColor
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+
+                        Text {
+                            text: "• <90%: مراجعه به پزشک"
+                            font.pixelSize: 10
+                            color: root.themeManager.secondaryTextColor
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+                    }
+                }
             }
         }
     }

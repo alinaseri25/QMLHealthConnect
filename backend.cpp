@@ -7,7 +7,7 @@ Backend::Backend(QObject *parent)
     checkPermissions();
 }
 
-void Backend::onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr)
+void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool hr, bool spo2)
 {
     hList.clear();
     wList.clear();
@@ -15,6 +15,7 @@ void Backend::onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr)
     bpDiastolicList.clear();
     heartRateList.clear();
     bloodGlucoseList.clear();
+    oxygenSaturationList.clear();
 
 #ifdef Q_OS_ANDROID
     checkPermissions();
@@ -47,7 +48,12 @@ void Backend::onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr)
     {
         readHR(startTime,endTime);
     }
-    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList);
+    if(spo2) // ✅ جدید
+    {
+        readOxygenSaturation(startTime, endTime);
+    }
+
+    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList, oxygenSaturationList);
 #else
     qDebug() << "Not Android";
 #endif
@@ -315,6 +321,70 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
 #else
     qDebug() << "Not Android - Blood glucose write skipped";
     emit bloodGlucoseWritten(false, "Not running on Android");
+#endif
+}
+
+void Backend::writeOxygenSaturation(double percentage)
+{
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+
+    if (!activity.isValid()) {
+        qDebug() << "❌ Activity is invalid!";
+        emit oxygenSaturationWritten(false, "Activity is invalid");
+        return;
+    }
+
+    // ✅ اعتبارسنجی مقدار
+    if (percentage < 50.0 || percentage > 100.0) {
+        qDebug() << "❌ Invalid SpO2 value:" << percentage;
+        emit oxygenSaturationWritten(false,
+                                     QString("مقدار اشباع اکسیژن نامعتبر است: %1%").arg(percentage));
+        return;
+    }
+
+    // ⚠️ هشدار برای مقادیر پایین
+    if (percentage < 90.0) {
+        qWarning() << "⚠️ Warning: Low SpO2 value:" << percentage << "%";
+    }
+
+    // ✅ دریافت زمان فعلی به فرمت ISO8601
+    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(currentTime);
+
+    // ✅ فراخوانی متد Kotlin
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeOxygenSaturation",
+        "(DLjava/lang/String;)Ljava/lang/String;",  // D=double, String=time
+        percentage,
+        jTime.object<jstring>()
+        );
+
+    QString status = result.toString();
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if (success) {
+        status = QString("%1 %%").arg(percentage, 0, 'f', 1); // یک رقم اعشار
+
+        // ✅ افزودن برچسب وضعیت
+        QString condition;
+        if (percentage >= 95.0) {
+            condition = " (نرمال ✅)";
+        } else if (percentage >= 90.0) {
+            condition = " (قابل توجه ⚠️)";
+        } else {
+            condition = " (خطرناک ⛔)";
+        }
+        status += condition;
+    }
+
+    qDebug() << "🫁 SpO2 write result:" << status;
+    emit oxygenSaturationWritten(success, status);
+
+#else
+    qDebug() << "Not Android - Oxygen saturation write skipped";
+    emit oxygenSaturationWritten(false, "Not running on Android");
 #endif
 }
 
@@ -637,6 +707,66 @@ void Backend::readBG(QString startTime, QString endTime)
                 QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
                 bloodGlucoseList.append(QPointF(dt.toMSecsSinceEpoch(), obj["glucose_mg_dl"].toDouble()));
             }
+        }
+    }
+#else
+    qDebug() << "Not Android";
+#endif
+}
+
+void Backend::readOxygenSaturation(QString startTime, QString endTime)
+{
+#ifdef Q_OS_ANDROID
+    QString status;
+    QJniObject result;
+
+    // ─────────────────────────────────────────
+    // Oxygen Saturation (SpO₂)
+    // ─────────────────────────────────────────
+    {
+        QJniObject jStart = QJniObject::fromString(startTime);
+        QJniObject jEnd   = QJniObject::fromString(endTime);
+
+        result = QJniObject::callStaticObjectMethod(
+            "org/verya/QMLHealthConnect/HealthBridge",
+            "readOxygenSaturation",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+            jStart.object<jstring>(),
+            jEnd.object<jstring>()
+            );
+
+        status = result.toString();
+        qDebug() << "🫁 Oxygen Saturation status:" << status.left(80);
+
+        if (status == "SECURITY_ERROR") {
+            qDebug() << "❌ Security error (oxygen saturation)";
+            return;
+        }
+
+        if (!status.startsWith("ERROR") && status != "NO_OXYGEN_DATA") {
+            QJsonDocument doc = QJsonDocument::fromJson(status.toUtf8());
+            QJsonArray arr = doc.array();
+
+            qDebug() << "🫁 Processing" << arr.size() << "oxygen saturation records";
+
+            for (qsizetype i = 0; i < arr.size(); i++) {
+                QJsonObject obj = arr.at(i).toObject();
+                QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+                double percentage = obj["percentage"].toDouble();
+
+                // ✅ فقط مقادیر معتبر را اضافه کن (50-100%)
+                if (percentage >= 50.0 && percentage <= 100.0) {
+                    oxygenSaturationList.append(QPointF(dt.toMSecsSinceEpoch(), percentage));
+                    //qDebug() << "percentage : " << percentage;
+
+                    // ⚠️ هشدار برای مقادیر پایین
+                    if (percentage < 90.0) {
+                        qWarning() << "⚠️ Low SpO2 detected:" << percentage << "% at" << dt.toString();
+                    }
+                }
+            }
+
+            qDebug() << "✅ Read" << oxygenSaturationList.size() << "valid SpO2 records";
         }
     }
 #else

@@ -26,6 +26,7 @@ QtObject {
     property color chartBPDiastolicColor: isDarkMode ? "#FF9800" : "#F57C00"   // نارنجی
     property color chartHeartRateColor: isDarkMode ? "#AB47BC" : "#7B1FA2"    // بنفش - ضربان قلب
     property color chartBloodGlucoseColor: isDarkMode ? "#FFCA28" : "#F9A825" // زرد طلایی - قند خون
+    property color chartOxygenSaturationColor: isDarkMode ? "#26C6DA" : "#00ACC1" // ✅ فیروزه‌ای/سبز آبی - اشباع اکسیژن
 
     // رنگ‌های محور
     property color axisColor: isDarkMode ? "#505050" : "#666666"
@@ -45,6 +46,9 @@ QtObject {
     // رنگ‌های border
     property color panelBorderColor: isDarkMode ? "#505050" : "#bbbbbb"
     property color separatorColor: isDarkMode ? "#404040" : "#cccccc"
+
+    property color infoBoxColor: isDark ? Qt.rgba(0.3, 0.5, 0.7, 0.15) : Qt.rgba(0.5, 0.7, 1.0, 0.1)
+    property color infoBorderColor: isDark ? Qt.rgba(0.4, 0.6, 0.8, 0.4) : Qt.rgba(0.3, 0.5, 0.8, 0.3)
 
     function toggleTheme() {
         isDarkMode = !isDarkMode
