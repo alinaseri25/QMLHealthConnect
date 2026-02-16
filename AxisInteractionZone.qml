@@ -3,9 +3,8 @@ import QtQuick
 Rectangle {
     id: root
 
-    // Properties
-    property var targetAxis  // برای محور X (تک محور)
-    property var targetAxes: []  // ✅ برای محورهای Y (چند محور)
+    property var targetAxis  // برای محور X
+    property var targetAxes: []  // برای محورهای Y (چندگانه)
     property string axisType: "x" // "x" یا "y"
     property var chartView
 
@@ -14,16 +13,17 @@ Rectangle {
     PinchArea {
         anchors.fill: parent
         property real initialRange
-        property var initialRanges: []  // ✅ برای ذخیره range های اولیه
+        property var initialRanges: []
 
         onPinchStarted: {
             if (axisType === "x") {
                 initialRange = targetAxis.max.getTime() - targetAxis.min.getTime()
             } else {
-                // ✅ ذخیره range اولیه همه محورها
                 initialRanges = []
                 for (let i = 0; i < targetAxes.length; i++) {
-                    initialRanges.push(targetAxes[i].max - targetAxes[i].min)
+                    if (targetAxes[i].visible) {
+                        initialRanges.push(targetAxes[i].max - targetAxes[i].min)
+                    }
                 }
             }
         }
@@ -36,11 +36,15 @@ Rectangle {
                 targetAxis.min = new Date(center - (initialRange * scale) / 2)
                 targetAxis.max = new Date(center + (initialRange * scale) / 2)
             } else {
-                // ✅ اعمال zoom به همه محورها
+                // زوم همزمان تمام محورهای Y
+                let rangeIndex = 0
                 for (let i = 0; i < targetAxes.length; i++) {
-                    let center = (targetAxes[i].max + targetAxes[i].min) / 2
-                    targetAxes[i].min = center - (initialRanges[i] * scale) / 2
-                    targetAxes[i].max = center + (initialRanges[i] * scale) / 2
+                    if (targetAxes[i].visible) {
+                        let center = (targetAxes[i].max + targetAxes[i].min) / 2
+                        targetAxes[i].min = center - (initialRanges[rangeIndex] * scale) / 2
+                        targetAxes[i].max = center + (initialRanges[rangeIndex] * scale) / 2
+                        rangeIndex++
+                    }
                 }
             }
         }
@@ -50,7 +54,6 @@ Rectangle {
             hoverEnabled: true
             cursorShape: axisType === "x" ? Qt.SizeHorCursor : Qt.SizeVerCursor
 
-            // Scroll → Zoom
             onWheel: (wheel) => {
                 let zoomFactor = wheel.angleDelta.y > 0 ? 0.9 : 1.1
 
@@ -60,17 +63,18 @@ Rectangle {
                     targetAxis.min = new Date(center - (range * zoomFactor) / 2)
                     targetAxis.max = new Date(center + (range * zoomFactor) / 2)
                 } else {
-                    // ✅ زوم همزمان همه محورها
+                    // زوم همزمان تمام محورهای Y
                     for (let i = 0; i < targetAxes.length; i++) {
-                        let range = targetAxes[i].max - targetAxes[i].min
-                        let center = (targetAxes[i].max + targetAxes[i].min) / 2
-                        targetAxes[i].min = center - (range * zoomFactor) / 2
-                        targetAxes[i].max = center + (range * zoomFactor) / 2
+                        if (targetAxes[i].visible) {
+                            let range = targetAxes[i].max - targetAxes[i].min
+                            let center = (targetAxes[i].max + targetAxes[i].min) / 2
+                            targetAxes[i].min = center - (range * zoomFactor) / 2
+                            targetAxes[i].max = center + (range * zoomFactor) / 2
+                        }
                     }
                 }
             }
 
-            // Drag → Pan
             property real dragStart: 0
 
             onPressed: (mouse) => {
@@ -87,28 +91,29 @@ Rectangle {
                         targetAxis.max = new Date(targetAxis.max.getTime() + shift)
                         dragStart = mouse.x
                     } else {
-                        // ✅ جابجایی همزمان همه محورها
+                        // جابجایی همزمان تمام محورهای Y
                         let dy = mouse.y - dragStart
                         for (let i = 0; i < targetAxes.length; i++) {
-                            let range = targetAxes[i].max - targetAxes[i].min
-                            let shift = (dy / height) * range
-                            targetAxes[i].min += shift
-                            targetAxes[i].max += shift
+                            if (targetAxes[i].visible) {
+                                let range = targetAxes[i].max - targetAxes[i].min
+                                let shift = (dy / height) * range
+                                targetAxes[i].min += shift
+                                targetAxes[i].max += shift
+                            }
                         }
                         dragStart = mouse.y
                     }
                 }
             }
 
-            // Double-click → Reset
             onDoubleClicked: {
                 if (axisType === "x") {
                     targetAxis.min = new Date(Date.now() - 10000)
                     targetAxis.max = new Date(Date.now())
                 } else {
-                    // ✅ Reset همه محورها به مقادیر پیش‌فرض
-                    // این بخش رو باید بر اساس نیازت تنظیم کنی
-                    console.log("Y-axes reset requested")
+                    // Reset تمام محورهای Y به مقادیر پیش‌فرض
+                    console.log("Reset all Y-axes to default ranges")
+                    // این بخش باید بر اساس نیاز شما تنظیم شود
                 }
             }
         }

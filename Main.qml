@@ -45,9 +45,27 @@ Rectangle {
         }
     }
 
-    // ===== نواحی تعامل با محورها =====
+    // ✅ ناحیه تعامل روی خود چارت
+    ChartInteractionZone {
+        id: chartInteractionZone
+        x: chartView.x + chartView.plotArea.x
+        y: chartView.y + chartView.plotArea.y
+        width: chartView.plotArea.width
+        height: chartView.plotArea.height
+        z: 0  // پشت tooltip
 
-    // محور X
+        xAxis: chartView.xAxis
+        yAxes: [
+            chartView.heightAxis,
+            chartView.weightAxis,
+            chartView.bpAxis,
+            chartView.hrAxis,
+            chartView.bgAxis
+        ]
+        chartView: chartView
+    }
+
+    // ✅ ناحیه محور X (زیر چارت)
     AxisInteractionZone {
         id: xAxisZone
         x: chartView.x + chartView.plotArea.x
@@ -61,72 +79,23 @@ Rectangle {
         chartView: chartView
     }
 
-    // محور Y1
+    // ✅ ناحیه تمام محورهای Y (سمت راست چارت)
+    // این یک ناحیه واحد برای تمام محورهای Y است
     AxisInteractionZone {
-        id: y1AxisZone
-        x: chartView.x
-        y: chartView.y + chartView.plotArea.y
-        width: chartView.plotArea.x
-        height: chartView.plotArea.height
-        z: 1
-
-        targetAxis: chartView.heightAxis
-        axisType: "y"
-        chartView: chartView
-    }
-
-    // محور Y2
-    AxisInteractionZone {
-        id: y2AxisZone
+        id: allYAxesZone
         x: chartView.x + chartView.plotArea.x + chartView.plotArea.width
         y: chartView.y + chartView.plotArea.y
-        width: 60
+        width: 240  // عرض کل فضای محورهای Y
         height: chartView.plotArea.height
         z: 1
 
-        targetAxis: chartView.weightAxis
-        axisType: "y"
-        chartView: chartView
-    }
-
-    // محور Y3
-    AxisInteractionZone {
-        id: y3AxisZone
-        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width + 60
-        y: chartView.y + chartView.plotArea.y
-        width: 60
-        height: chartView.plotArea.height
-        z: 1
-
-        targetAxis: chartView.bpAxis
-        axisType: "y"
-        chartView: chartView
-    }
-
-    // ✅ محور Y5 - ضربان قلب
-    AxisInteractionZone {
-        id: y5AxisZone
-        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width + 120
-        y: chartView.y + chartView.plotArea.y
-        width: 60
-        height: chartView.plotArea.height
-        z: 1
-
-        targetAxis: chartView.y5Axis
-        axisType: "y"
-        chartView: chartView
-    }
-
-    // ✅ محور Y6 - قند خون
-    AxisInteractionZone {
-        id: y6AxisZone
-        x: chartView.x + chartView.plotArea.x + chartView.plotArea.width + 180
-        y: chartView.y + chartView.plotArea.y
-        width: 60
-        height: chartView.plotArea.height
-        z: 1
-
-        targetAxis: chartView.y6Axis
+        targetAxes: [
+            chartView.heightAxis,
+            chartView.weightAxis,
+            chartView.bpAxis,
+            chartView.hrAxis,
+            chartView.bgAxis
+        ]
         axisType: "y"
         chartView: chartView
     }
