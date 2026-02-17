@@ -1,9 +1,7 @@
 import QtQuick
 
-Row {
+Item {
     id: root
-
-    spacing: 10
 
     required property var themeManager
 
@@ -19,6 +17,16 @@ Row {
     property var chartView: null
 
     signal updateRequested()
+
+    // ✅ خط جداکننده زیر هدر
+    // Rectangle {
+    //     anchors.bottom: parent.bottom
+    //     anchors.left: parent.left
+    //     anchors.right: parent.right
+    //     height: 1
+    //     color: themeManager.panelBorderColor
+    //     Behavior on color { ColorAnimation { duration: 300 } }
+    // }
 
     /**
      * ✅ تنظیم visibility اولیه برای تمام سری‌ها و محورها
@@ -55,154 +63,160 @@ Row {
     // 🔘 دکمه‌های کنترل نمایش داده‌ها
     // ═════════════════════════════════════════════════════════════
 
-    CButton {
-        themeManager: root.themeManager
-        text: "HR"
-        width: 50
-        height: 35
+    Row {
+        id: buttonRow
+        anchors.centerIn: parent
+        spacing: 10
 
-        // ✅ نشانگر وضعیت فعال/غیرفعال
-        opacity: heartRateSeries.visible ? 1.0 : 0.5
+        CButton {
+            themeManager: root.themeManager
+            text: "HR"
+            width: 50
+            height: 35
 
-        onClicked: {
-            heartRateSeries.visible = !heartRateSeries.visible
+            // ✅ نشانگر وضعیت فعال/غیرفعال
+            opacity: heartRateSeries.visible ? 1.0 : 0.5
 
-            // ✅ کنترل محور
-            if (root.chartView) {
-                root.chartView.heartRateAxisVisible = heartRateSeries.visible
+            onClicked: {
+                heartRateSeries.visible = !heartRateSeries.visible
+
+                // ✅ کنترل محور
+                if (root.chartView) {
+                    root.chartView.heartRateAxisVisible = heartRateSeries.visible
+                }
             }
+
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        CButton {
+            themeManager: root.themeManager
+            text: "BG"
+            width: 50
+            height: 35
 
-    CButton {
-        themeManager: root.themeManager
-        text: "BG"
-        width: 50
-        height: 35
+            opacity: bloodGlucoseSeries.visible ? 1.0 : 0.5
 
-        opacity: bloodGlucoseSeries.visible ? 1.0 : 0.5
+            onClicked: {
+                bloodGlucoseSeries.visible = !bloodGlucoseSeries.visible
 
-        onClicked: {
-            bloodGlucoseSeries.visible = !bloodGlucoseSeries.visible
-
-            // ✅ کنترل محور
-            if (root.chartView) {
-                root.chartView.bloodGlucoseAxisVisible = bloodGlucoseSeries.visible
+                // ✅ کنترل محور
+                if (root.chartView) {
+                    root.chartView.bloodGlucoseAxisVisible = bloodGlucoseSeries.visible
+                }
             }
+
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        // ✅ دکمه جدید SpO₂
+        CButton {
+            themeManager: root.themeManager
+            text: "SpO₂"
+            width: 60
+            height: 35
 
-    // ✅ دکمه جدید SpO₂
-    CButton {
-        themeManager: root.themeManager
-        text: "SpO₂"
-        width: 60
-        height: 35
+            opacity: oxygenSaturationSeries.visible ? 1.0 : 0.5
 
-        opacity: oxygenSaturationSeries.visible ? 1.0 : 0.5
+            onClicked: {
+                oxygenSaturationSeries.visible = !oxygenSaturationSeries.visible
 
-        onClicked: {
-            oxygenSaturationSeries.visible = !oxygenSaturationSeries.visible
-
-            // ✅ کنترل محور
-            if (root.chartView) {
-                root.chartView.oxygenSaturationAxisVisible = oxygenSaturationSeries.visible
+                // ✅ کنترل محور
+                if (root.chartView) {
+                    root.chartView.oxygenSaturationAxisVisible = oxygenSaturationSeries.visible
+                }
             }
+
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        CButton {
+            themeManager: root.themeManager
+            text: "Height"
+            width: 70
+            height: 35
 
-    CButton {
-        themeManager: root.themeManager
-        text: "Height"
-        width: 70
-        height: 35
+            opacity: heightSeries.visible ? 1.0 : 0.5
 
-        opacity: heightSeries.visible ? 1.0 : 0.5
+            onClicked: {
+                heightSeries.visible = !heightSeries.visible
 
-        onClicked: {
-            heightSeries.visible = !heightSeries.visible
-
-            // ✅ کنترل محور
-            if (root.chartView) {
-                root.chartView.heightAxisVisible = heightSeries.visible
+                // ✅ کنترل محور
+                if (root.chartView) {
+                    root.chartView.heightAxisVisible = heightSeries.visible
+                }
             }
+
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        CButton {
+            themeManager: root.themeManager
+            text: "Weight"
+            width: 70
+            height: 35
 
-    CButton {
-        themeManager: root.themeManager
-        text: "Weight"
-        width: 70
-        height: 35
+            opacity: weightSeries.visible ? 1.0 : 0.5
 
-        opacity: weightSeries.visible ? 1.0 : 0.5
+            onClicked: {
+                weightSeries.visible = !weightSeries.visible
 
-        onClicked: {
-            weightSeries.visible = !weightSeries.visible
-
-            // ✅ کنترل محور
-            if (root.chartView) {
-                root.chartView.weightAxisVisible = weightSeries.visible
+                // ✅ کنترل محور
+                if (root.chartView) {
+                    root.chartView.weightAxisVisible = weightSeries.visible
+                }
             }
+
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        CButton {
+            themeManager: root.themeManager
+            text: "BP (S)"
+            width: 70
+            height: 35
 
-    CButton {
-        themeManager: root.themeManager
-        text: "BP (S)"
-        width: 70
-        height: 35
+            opacity: bpSystolicSeries.visible ? 1.0 : 0.5
 
-        opacity: bpSystolicSeries.visible ? 1.0 : 0.5
+            onClicked: {
+                bpSystolicSeries.visible = !bpSystolicSeries.visible
 
-        onClicked: {
-            bpSystolicSeries.visible = !bpSystolicSeries.visible
+                // ✅ کنترل محور فشار خون (فقط وقتی هر دو مخفی باشند)
+                updateBPAxisVisibility()
+            }
 
-            // ✅ کنترل محور فشار خون (فقط وقتی هر دو مخفی باشند)
-            updateBPAxisVisibility()
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        CButton {
+            themeManager: root.themeManager
+            text: "BP (D)"
+            width: 70
+            height: 35
 
-    CButton {
-        themeManager: root.themeManager
-        text: "BP (D)"
-        width: 70
-        height: 35
+            opacity: bpDiastolicSeries.visible ? 1.0 : 0.5
 
-        opacity: bpDiastolicSeries.visible ? 1.0 : 0.5
+            onClicked: {
+                bpDiastolicSeries.visible = !bpDiastolicSeries.visible
 
-        onClicked: {
-            bpDiastolicSeries.visible = !bpDiastolicSeries.visible
+                // ✅ کنترل محور فشار خون (فقط وقتی هر دو مخفی باشند)
+                updateBPAxisVisibility()
+            }
 
-            // ✅ کنترل محور فشار خون (فقط وقتی هر دو مخفی باشند)
-            updateBPAxisVisibility()
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        CButton {
+            themeManager: root.themeManager
+            text: "Update"
+            width: 80
+            height: 35
 
-    CButton {
-        themeManager: root.themeManager
-        text: "Update"
-        width: 80
-        height: 35
+            // ✅ استایل متفاوت برای دکمه Update
+            // می‌توانید در CButton.qml یک property برای highlighted اضافه کنید
 
-        // ✅ استایل متفاوت برای دکمه Update
-        // می‌توانید در CButton.qml یک property برای highlighted اضافه کنید
-
-        onClicked: updateRequested()
+            onClicked: updateRequested()
+        }
     }
 
     // ═════════════════════════════════════════════════════════════

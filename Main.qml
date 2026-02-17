@@ -40,10 +40,13 @@ Rectangle {
         id: chartView
         themeManager: appTheme
 
-        x: 0
-        y: 50
-        width: parent.width - inputPanel.width
-        height: parent.height - 50
+        anchors.left: parent.left
+        //anchors.right: parent.right
+        anchors.right: inputPanel.left
+        anchors.bottom: parent.bottom
+        anchors.top: controlButtons.bottom
+        anchors.topMargin: 5  // فاصله کمی از پایین دکمه‌ها
+        z: 0
 
         Behavior on width {
             NumberAnimation {
@@ -115,10 +118,13 @@ Rectangle {
 
     // ===== دکمه‌های کنترل نمودار =====
     ChartControlButtons {
-        themeManager: appTheme
         id: controlButtons
-        x: (parent.width / 2) - 350
-        y: 10
+        themeManager: appTheme
+        x: 0
+        y: 0
+        height: 50
+        width: parent.width
+        z: 1
 
         chartView: chartView
 
@@ -155,7 +161,10 @@ Rectangle {
         id: inputPanel
         themeManager: appTheme
         anchors.right: parent.right
-        z: 2
+        anchors.top: controlButtons.bottom
+        anchors.bottom: parent.bottom
+
+        z: 3
 
         onHeightSubmitted: (value) => {
             mainView.setHeight(value)
@@ -182,12 +191,14 @@ Rectangle {
         }
     }
 
+
+
     // ===== دکمه تغییر تم =====
     ThemeToggle {
         themeManager: appTheme
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.margins: 16
+        anchors.margins: 15
         z: 3  // ✅ z-index بالاتر
     }
 
@@ -449,6 +460,7 @@ Rectangle {
             }
 
             // === پردازش ضربان قلب ===
+            console.log("heartRateList siz : " + heartRateList.length)
             for (let i = 0; i < heartRateList.length; i++) {
                 let hr = heartRateList[i].y
                 chartView.heartRateSeries.append(heartRateList[i].x, hr)

@@ -30,7 +30,7 @@ QtObject {
 
     // رنگ‌های محور
     property color axisColor: isDarkMode ? "#505050" : "#666666"
-    property color axisLabelColor: isDarkMode ? "#b0b0b0" : "#444444"
+    property color axisLabelColor: isDarkMode ? "#e0e0e0" : "#212121"
     property color gridColor: isDarkMode ? "#404040" : "#e0e0e0"
 
     // رنگ‌های input

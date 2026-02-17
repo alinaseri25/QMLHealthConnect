@@ -32,10 +32,11 @@ ChartView {
 
     property bool tooltipEnabled: true
 
-    title: "نمودار سلامتی"
+    //title: "نمودار سلامتی"
     antialiasing: true
     animationOptions: ChartView.NoAnimation
     legend.alignment: Qt.AlignTop
+    legend.visible: false
 
     // استفاده از تم
     backgroundColor: themeManager.cardColor
@@ -80,7 +81,8 @@ ChartView {
         visible: chartView.heightAxisVisible
 
         color: themeManager.chartHeightColor
-        labelsColor: themeManager.axisLabelColor
+        labelsColor: themeManager.chartHeightColor //themeManager.axisLabelColor
+        titleBrush: themeManager.chartHeightColor //themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
         Behavior on color { ColorAnimation { duration: 300 } }
@@ -98,7 +100,8 @@ ChartView {
         visible: chartView.weightAxisVisible
 
         color: themeManager.chartWeightColor
-        labelsColor: themeManager.axisLabelColor
+        labelsColor: themeManager.chartWeightColor //themeManager.axisLabelColor
+        titleBrush: themeManager.chartWeightColor //themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
         Behavior on color { ColorAnimation { duration: 300 } }
@@ -116,7 +119,8 @@ ChartView {
         visible: chartView.bpAxisVisible
 
         color: themeManager.chartBPSystolicColor
-        labelsColor: themeManager.axisLabelColor
+        labelsColor: themeManager.chartBPSystolicColor //themeManager.axisLabelColor
+        titleBrush: themeManager.chartBPSystolicColor //themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
         Behavior on color { ColorAnimation { duration: 300 } }
@@ -134,7 +138,8 @@ ChartView {
         visible: chartView.heartRateAxisVisible
 
         color: themeManager.chartHeartRateColor
-        labelsColor: themeManager.axisLabelColor
+        labelsColor: themeManager.chartHeartRateColor //themeManager.axisLabelColor
+        titleBrush: themeManager.chartHeartRateColor //themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
         Behavior on color { ColorAnimation { duration: 300 } }
@@ -152,7 +157,8 @@ ChartView {
         visible: chartView.bloodGlucoseAxisVisible
 
         color: themeManager.chartBloodGlucoseColor
-        labelsColor: themeManager.axisLabelColor
+        labelsColor: themeManager.chartBloodGlucoseColor //themeManager.axisLabelColor
+        titleBrush: themeManager.chartBloodGlucoseColor //themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
         Behavior on color { ColorAnimation { duration: 300 } }
@@ -170,7 +176,8 @@ ChartView {
         visible: chartView.oxygenSaturationAxisVisible
 
         color: themeManager.chartOxygenSaturationColor  // ✅ رنگ از ThemeManager
-        labelsColor: themeManager.axisLabelColor
+        labelsColor: themeManager.chartOxygenSaturationColor //themeManager.axisLabelColor
+        titleBrush: themeManager.chartOxygenSaturationColor //themeManager.axisLabelColor
         gridLineColor: themeManager.gridColor
 
         Behavior on color { ColorAnimation { duration: 300 } }

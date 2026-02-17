@@ -56,32 +56,43 @@ object HealthBridge {
     private const val RELATION_TO_MEAL_GENERAL = 0
     private val readMutex = kotlinx.coroutines.sync.Mutex()
 
-    private suspend fun <T : androidx.health.connect.client.records.Record> safeReadBlocking(
-        client: HealthConnectClient,
-        request: ReadRecordsRequest<T>
-    ): androidx.health.connect.client.response.ReadRecordsResponse<T> {
-        var delayMs = 1000L
-        repeat(5) { attempt ->
-            try {
-                return readMutex.withLock {
-                    client.readRecords(request)
-                }
-            } catch (e: Exception) {
-                val msg = e.message ?: ""
-                if (msg.contains("Rate limit", ignoreCase = true) ||
-                    msg.contains("quota", ignoreCase = true) ||
-                    msg.contains("rejected", ignoreCase = true)
-                ) {
-                    Log.w(TAG, "⏳ Rate limited. Retry ${attempt + 1}/5 after ${delayMs}ms...")
-                    kotlinx.coroutines.delay(delayMs)
-                    delayMs = minOf(delayMs * 2, 15_000L)
-                } else {
-                    throw e
-                }
+private suspend fun <T : Record> safeReadBlocking(
+    client: HealthConnectClient,
+    request: ReadRecordsRequest<T>,
+    maxRetries: Int = 5
+): ReadRecordsResponse<T> {
+    var delayMs = 1000L
+    var lastException: Exception? = null
+
+    repeat(maxRetries) { attempt ->
+        try {
+            return readMutex.withLock {
+                client.readRecords(request)
+            }
+        } catch (e: Exception) {
+            lastException = e
+            val msg = e.message ?: ""
+            // ✅ پیام‌های بیشتری برای retry
+            val isRetryable = msg.contains("Rate limit", ignoreCase = true)
+                    || msg.contains("quota", ignoreCase = true)
+                    || msg.contains("rejected", ignoreCase = true)
+                    || msg.contains("Binder", ignoreCase = true)
+                    || msg.contains("Transaction", ignoreCase = true)
+                    || msg.contains("timeout", ignoreCase = true)
+                    || msg.contains("temporarily", ignoreCase = true)
+
+            if (isRetryable) {
+                Log.w(TAG, "⏳ Retryable error [${attempt+1}/$maxRetries]: $msg. Waiting ${delayMs}ms...")
+                delay(delayMs)
+                delayMs = minOf(delayMs * 2, 30_000L)  // ✅ حداکثر ۳۰ ثانیه
+            } else {
+                Log.e(TAG, "❌ Non-retryable error: $msg")
+                throw e
             }
         }
-        throw Exception("Rate limit: max retries exceeded")
     }
+    throw lastException ?: Exception("Max retries exceeded")
+}
 
     // ═══════════════════════════════════════════════════════════
     // Helper: تبدیل ISO8601 String به Instant
@@ -523,25 +534,56 @@ object HealthBridge {
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
         return try {
-            val request = ReadRecordsRequest(
-                recordType = BloodPressureRecord::class,
-                timeRangeFilter = createTimeFilter(startTime, endTime),
-                ascendingOrder = true
-            )
-            val response = runBlocking(Dispatchers.IO) {
-                safeReadBlocking(client, request)
-            }
-            if (response.records.isEmpty()) return "NO_BLOOD_PRESSURE_DATA"
+            val pointMap = sortedMapOf<Instant, Pair<Double, Double>>()
+            var pageToken: String? = null
+            var pageCount = 0
+            val MAX_PAGES = 10  // فشار خون معمولاً چند بار در روز
+
+            do {
+                val request = ReadRecordsRequest(
+                    recordType = BloodPressureRecord::class,
+                    timeRangeFilter = createTimeFilter(startTime, endTime),
+                    ascendingOrder = true,
+                    pageSize = 1000,
+                    pageToken = pageToken
+                )
+                val response = runBlocking(Dispatchers.IO) {
+                    safeReadBlocking(client, request)
+                }
+
+                response.records.forEach { record ->
+                    pointMap[record.time] = Pair(
+                        record.systolic.inMillimetersOfMercury,
+                        record.diastolic.inMillimetersOfMercury
+                    )
+                }
+
+                val newToken = response.pageToken
+                pageCount++
+                Log.d(TAG, "🩸 BP page $pageCount: ${response.records.size} records, hasMore=${newToken != null}")
+
+                if (newToken == pageToken && newToken != null) {
+                    Log.w(TAG, "⚠️ BP: pageToken unchanged — SDK bug detected. Stopping.")
+                    break
+                }
+                pageToken = newToken
+
+            } while (pageToken != null && pageCount < MAX_PAGES)
+
+            if (pointMap.isEmpty()) return "NO_BLOOD_PRESSURE_DATA"
+
+            Log.d(TAG, "🩸 BP total unique records: ${pointMap.size} across $pageCount pages")
 
             val arr = JSONArray()
-            response.records.forEach { record ->
+            pointMap.forEach { (time, bp) ->
                 arr.put(JSONObject().apply {
-                    put("systolic", record.systolic.inMillimetersOfMercury)
-                    put("diastolic", record.diastolic.inMillimetersOfMercury)
-                    put("time", record.time.toString())
+                    put("systolic", bp.first)
+                    put("diastolic", bp.second)
+                    put("time", time.toString())
                 })
             }
             arr.toString()
+
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error reading blood pressure", e)
             "SECURITY_ERROR"
@@ -615,24 +657,52 @@ object HealthBridge {
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
         return try {
-            val request = ReadRecordsRequest(
-                recordType = BloodGlucoseRecord::class,
-                timeRangeFilter = createTimeFilter(startTime, endTime),
-                ascendingOrder = true
-            )
-            val response = runBlocking(Dispatchers.IO) {
-                safeReadBlocking(client, request)
-            }
-            if (response.records.isEmpty()) return "NO_BLOOD_GLUCOSE_DATA"
+            val pointMap = sortedMapOf<Instant, Double>()
+            var pageToken: String? = null
+            var pageCount = 0
+            val MAX_PAGES = 10
+
+            do {
+                val request = ReadRecordsRequest(
+                    recordType = BloodGlucoseRecord::class,
+                    timeRangeFilter = createTimeFilter(startTime, endTime),
+                    ascendingOrder = true,
+                    pageSize = 1000,
+                    pageToken = pageToken
+                )
+                val response = runBlocking(Dispatchers.IO) {
+                    safeReadBlocking(client, request)
+                }
+
+                response.records.forEach { record ->
+                    pointMap[record.time] = record.level.inMillimolesPerLiter
+                }
+
+                val newToken = response.pageToken
+                pageCount++
+                Log.d(TAG, "🍬 Glucose page $pageCount: ${response.records.size} records, hasMore=${newToken != null}")
+
+                if (newToken == pageToken && newToken != null) {
+                    Log.w(TAG, "⚠️ Glucose: pageToken unchanged — SDK bug detected. Stopping.")
+                    break
+                }
+                pageToken = newToken
+
+            } while (pageToken != null && pageCount < MAX_PAGES)
+
+            if (pointMap.isEmpty()) return "NO_BLOOD_GLUCOSE_DATA"
+
+            Log.d(TAG, "🍬 Glucose total unique records: ${pointMap.size} across $pageCount pages")
 
             val arr = JSONArray()
-            response.records.forEach { record ->
+            pointMap.forEach { (time, mmol) ->
                 arr.put(JSONObject().apply {
-                    put("mmol_per_l", record.level.inMillimolesPerLiter)
-                    put("time", record.time.toString())
+                    put("mmol_per_l", mmol)
+                    put("time", time.toString())
                 })
             }
             arr.toString()
+
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error reading blood glucose", e)
             "SECURITY_ERROR"
@@ -699,34 +769,73 @@ object HealthBridge {
      * @param endTime زمان پایان (ISO8601)
      * @return JSON Array: [{"bpm": 72, "time": "2024-01-15T10:30:00Z"}, ...]
     */
-    @JvmStatic
+    /**
+     * ✅ خواندن ضربان قلب با Deduplication + Sort
+     * بدون pagination — یک request واحد
+     *
+     * @param startTime زمان شروع (ISO8601) - پیش‌فرض: "2000-01-01T00:00:00.000Z"
+     * @param endTime   زمان پایان (ISO8601) - پیش‌فرض: زمان فعلی
+     * @return JSON Array: [{"bpm": 72, "time": "2024-01-15T10:30:00Z"}, ...]
+     *         یا "NO_HEART_RATE_DATA" / "CLIENT_NULL" / "SECURITY_ERROR" / "ERROR: ..."
+     */
+     @JvmStatic
     fun readHeartRate(
         startTime: String? = null,
         endTime: String? = null
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
         return try {
-            val request = ReadRecordsRequest(
-                recordType = HeartRateRecord::class,
-                timeRangeFilter = createTimeFilter(startTime, endTime),
-                ascendingOrder = true
-            )
-            val response = runBlocking(Dispatchers.IO) {
-                safeReadBlocking(client, request)
-            }
-            if (response.records.isEmpty()) return "NO_HEART_RATE_DATA"
+            val pointMap = sortedMapOf<Instant, Long>()
+            var pageToken: String? = null
+            var pageCount = 0
+            val MAX_PAGES = 30  // 30×1000 = 30,000 رکورد — برای HR که فشرده‌ترینه
+
+            do {
+                val request = ReadRecordsRequest(
+                    recordType = HeartRateRecord::class,
+                    timeRangeFilter = createTimeFilter(startTime, endTime),
+                    ascendingOrder = true,
+                    pageSize = 1000,
+                    pageToken = pageToken
+                )
+                val response = runBlocking(Dispatchers.IO) {
+                    safeReadBlocking(client, request)
+                }
+
+                response.records.forEach { record ->
+                    record.samples.forEach { sample ->
+                        pointMap[sample.time] = sample.beatsPerMinute
+                    }
+                }
+
+                val newToken = response.pageToken
+                pageCount++
+                Log.d(TAG, "❤️ HR page $pageCount: ${response.records.size} records, hasMore=${newToken != null}")
+
+                if (newToken == pageToken && newToken != null) {
+                    Log.w(TAG, "⚠️ HR: pageToken unchanged — SDK bug detected. Stopping.")
+                    break
+                }
+                pageToken = newToken
+
+            } while (pageToken != null && pageCount < MAX_PAGES)
+
+            if (pageCount >= MAX_PAGES)
+                Log.w(TAG, "⚠️ HR: MAX_PAGES reached. Total: ${pointMap.size}")
+
+            if (pointMap.isEmpty()) return "NO_HEART_RATE_DATA"
+
+            Log.d(TAG, "❤️ HR total unique records: ${pointMap.size} across $pageCount pages")
 
             val arr = JSONArray()
-            response.records.forEach { record ->
-                record.samples.forEach { sample ->
-                    arr.put(JSONObject().apply {
-                        put("bpm", sample.beatsPerMinute)
-                        put("time", sample.time.toString())
-                    })
-                }
+            pointMap.forEach { (time, bpm) ->
+                arr.put(JSONObject().apply {
+                    put("bpm", bpm)
+                    put("time", time.toString())
+                })
             }
-            if (arr.length() == 0) return "NO_HEART_RATE_DATA"
             arr.toString()
+
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error reading heart rate", e)
             "SECURITY_ERROR"
@@ -793,24 +902,61 @@ object HealthBridge {
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
         return try {
-            val request = ReadRecordsRequest(
-                recordType = OxygenSaturationRecord::class,
-                timeRangeFilter = createTimeFilter(startTime, endTime),
-                ascendingOrder = true
-            )
-            val response = runBlocking(Dispatchers.IO) {
-                safeReadBlocking(client, request)
+            // ✅ sortedMapOf → Dedup + Sort خودکار (مثل readHeartRate)
+            val pointMap = sortedMapOf<Instant, Double>()
+            var pageToken: String? = null
+            var pageCount = 0
+            val MAX_PAGES = 20  // ✅ سقف ایمنی — جلوگیری از loop بی‌نهایت روی Android < 14
+
+            do {
+                val request = ReadRecordsRequest(
+                    recordType = OxygenSaturationRecord::class,
+                    timeRangeFilter = createTimeFilter(startTime, endTime),
+                    ascendingOrder = true,
+                    pageSize = 1000,
+                    pageToken = pageToken
+                )
+
+                val response = runBlocking(Dispatchers.IO) {
+                    safeReadBlocking(client, request)
+                }
+
+                response.records.forEach { record ->
+                    pointMap[record.time] = record.percentage.value
+                }
+
+                val newToken = response.pageToken
+                pageCount++
+                Log.d(TAG, "🫁 SpO2 page $pageCount: ${response.records.size} records, hasMore=${newToken != null}")
+
+                // ✅ تشخیص loop بی‌نهایت: اگه token تغییر نکرد → متوقف شو
+                if (newToken == pageToken && newToken != null) {
+                    Log.w(TAG, "⚠️ SpO2: pageToken unchanged — likely Android < 14 SDK bug. Stopping.")
+                    break
+                }
+
+                pageToken = newToken
+
+            } while (pageToken != null && pageCount < MAX_PAGES)
+
+            if (pageCount >= MAX_PAGES) {
+                Log.w(TAG, "⚠️ SpO2: MAX_PAGES ($MAX_PAGES) reached. Total so far: ${pointMap.size}")
             }
-            if (response.records.isEmpty()) return "NO_OXYGEN_DATA"
+
+            if (pointMap.isEmpty()) return "NO_OXYGEN_DATA"
+
+            Log.d(TAG, "🫁 SpO2 total unique records: ${pointMap.size} across $pageCount pages")
 
             val arr = JSONArray()
-            response.records.forEach { record ->
+            pointMap.forEach { (time, percentage) ->
                 arr.put(JSONObject().apply {
-                    put("percentage", record.percentage.value)
-                    put("time", record.time.toString())
+                    put("percentage", percentage)
+                    put("time", time.toString())
                 })
             }
+
             arr.toString()
+
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error reading oxygen saturation", e)
             "SECURITY_ERROR"

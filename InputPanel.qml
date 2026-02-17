@@ -31,8 +31,7 @@ Rectangle {
     property alias oxygenSaturationStatusText: oxygenSaturationStatus.text
     property alias oxygenSaturationStatusColor: oxygenSaturationStatus.color
 
-    width: expanded ? 330 : 0
-    height: parent.height
+    width: expanded ? (parent.width / 3) : 0
 
     // ✅ FIX: اطمینان از استفاده درست از themeManager
     color: root.themeManager.surfaceColor

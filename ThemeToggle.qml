@@ -20,9 +20,9 @@ Rectangle {
 
     Rectangle {
         id: toggleCircle
-        width: 26
-        height: 26
-        radius: 13
+        width: 25
+        height: 25
+        radius: 12
         anchors.verticalCenter: parent.verticalCenter
         x: themeManager.isDarkMode ? parent.width - width - 3 : 3
 
