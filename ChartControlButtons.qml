@@ -321,7 +321,7 @@ Row {
             true,  // BP
             false,   // Heart Rate (مثلاً فقط این یکی نمایش داده شود)
             false,  // Blood Glucose
-            true   // SpO2
+            false   // SpO2
         )
     }
 }

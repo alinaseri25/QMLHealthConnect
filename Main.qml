@@ -28,17 +28,17 @@ Rectangle {
     signal setBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
     signal setOxygenSaturation(double value)
 
+    // ✅ یک tooltip سراسری برای کل برنامه
+    GenericTooltip {
+        id: globalTooltip
+        z: 10000
+        parent: mainView  // مهم: parent باید root باشه
+    }
+
     // ===== نمودار اصلی =====
     HealthChartView {
         id: chartView
         themeManager: appTheme
-
-        // ✅ یک tooltip سراسری برای کل برنامه
-        GenericTooltip {
-            id: globalTooltip
-            z: 10000
-            parent: root  // مهم: parent باید root باشه
-        }
 
         x: 0
         y: 50
@@ -132,7 +132,7 @@ Rectangle {
 
         onUpdateRequested: {
             mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,
-                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationSeries)
+                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
         }
     }
 
@@ -262,7 +262,7 @@ Rectangle {
         setBloodGlucose.connect(myBackend.writeBloodGlucose)
         setOxygenSaturation.connect(myBackend.writeOxygenSaturation)
 
-        controlButtons.setInitialVisibility(false,true,true,false,true)
+        controlButtons.setInitialVisibility(false,true,true,false,true,true)
     }
 
     Connections {

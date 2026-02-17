@@ -48,7 +48,7 @@ void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool h
     {
         readHR(startTime,endTime);
     }
-    if(spo2) // ✅ جدید
+    if(spo2)
     {
         readOxygenSaturation(startTime, endTime);
     }

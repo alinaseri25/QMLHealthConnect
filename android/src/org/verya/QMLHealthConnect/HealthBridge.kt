@@ -4,30 +4,46 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+
+// ── Health Connect Client ──────────────────────────────────────
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
-//import androidx.health.connect.client.records.metadata.Metadata
-//import androidx.health.connect.client.records.metadata.DataOrigin
-//import androidx.health.connect.client.records.metadata.Device
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
+
+// ── Health Connect Records ─────────────────────────────────────
+import androidx.health.connect.client.records.Record          // ← برای generic <T : Record>
 import androidx.health.connect.client.records.HeightRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.records.BloodPressureRecord
-import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.BloodGlucoseRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
-import androidx.health.connect.client.time.TimeRangeFilter
-import kotlinx.coroutines.*
-import org.json.JSONArray
-import org.json.JSONObject
-import java.time.Instant
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
+
+// ── Health Connect Response ────────────────────────────────────
+import androidx.health.connect.client.response.ReadRecordsResponse  // ← برای return type
+
+// ── Health Connect Units ───────────────────────────────────────
 import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Mass
 import androidx.health.connect.client.units.Pressure
 import androidx.health.connect.client.units.BloodGlucose
 import androidx.health.connect.client.units.Percentage
+
+// ── Coroutines ─────────────────────────────────────────────────
+import kotlinx.coroutines.*
+import kotlinx.coroutines.delay                              // ← برای delay() در retry
+import kotlinx.coroutines.sync.Mutex                        // ← برای readMutex
+import kotlinx.coroutines.sync.withLock                     // ← برای mutex.withLock {}
+
+// ── JSON ───────────────────────────────────────────────────────
+import org.json.JSONArray
+import org.json.JSONObject
+
+// ── Java Time ─────────────────────────────────────────────────
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 
 object HealthBridge {
@@ -38,6 +54,34 @@ object HealthBridge {
     private const val SPECIMEN_SOURCE_CAPILLARY_BLOOD = 1
     private const val MEAL_TYPE_UNKNOWN = 0
     private const val RELATION_TO_MEAL_GENERAL = 0
+    private val readMutex = kotlinx.coroutines.sync.Mutex()
+
+    private suspend fun <T : androidx.health.connect.client.records.Record> safeReadBlocking(
+        client: HealthConnectClient,
+        request: ReadRecordsRequest<T>
+    ): androidx.health.connect.client.response.ReadRecordsResponse<T> {
+        var delayMs = 1000L
+        repeat(5) { attempt ->
+            try {
+                return readMutex.withLock {
+                    client.readRecords(request)
+                }
+            } catch (e: Exception) {
+                val msg = e.message ?: ""
+                if (msg.contains("Rate limit", ignoreCase = true) ||
+                    msg.contains("quota", ignoreCase = true) ||
+                    msg.contains("rejected", ignoreCase = true)
+                ) {
+                    Log.w(TAG, "⏳ Rate limited. Retry ${attempt + 1}/5 after ${delayMs}ms...")
+                    kotlinx.coroutines.delay(delayMs)
+                    delayMs = minOf(delayMs * 2, 15_000L)
+                } else {
+                    throw e
+                }
+            }
+        }
+        throw Exception("Rate limit: max retries exceeded")
+    }
 
     // ═══════════════════════════════════════════════════════════
     // Helper: تبدیل ISO8601 String به Instant
@@ -308,157 +352,89 @@ object HealthBridge {
     }
 
     /**
-     * ✅ خواندن قد با بازه زمانی دلخواه
-     *
-     * @param startTime زمان شروع (ISO8601 format) - مثال: "2024-01-01T00:00:00.000Z"
-     *                  پیش‌فرض: "2000-01-01T00:00:00.000Z"
-     * @param endTime زمان پایان (ISO8601 format) - مثال: "2024-12-31T23:59:59.000Z"
-     *                پیش‌فرض: زمان فعلی
-     * @return JSON Array: [{"height_m": 1.75, "time": "2024-01-15T10:30:00Z"}, ...]
-     *         یا "NO_HEIGHT_DATA" اگر داده‌ای نباشد
-     */
-     @JvmStatic
-     fun readHeight(
-         startTime: String? = null,
-         endTime: String? = null
-     ): String {
-         val client = healthConnectClient ?: return "CLIENT_NULL"
+    * ✅ خواندن قد با بازه زمانی دلخواه
+    *
+    * @param startTime زمان شروع (ISO8601 format) - مثال: "2024-01-01T00:00:00.000Z"
+    *                  پیش‌فرض: "2000-01-01T00:00:00.000Z"
+    * @param endTime زمان پایان (ISO8601 format) - مثال: "2024-12-31T23:59:59.000Z"
+    *                پیش‌فرض: زمان فعلی
+    * @return JSON Array: [{"height_m": 1.75, "time": "2024-01-15T10:30:00Z"}, ...]
+    *         یا "NO_HEIGHT_DATA" اگر داده‌ای نباشد
+    */
+    @JvmStatic
+    fun readHeight(
+        startTime: String? = null,
+        endTime: String? = null
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = HeightRecord::class,
+                timeRangeFilter = createTimeFilter(startTime, endTime),
+                ascendingOrder = true
+            )
+            val response = runBlocking(Dispatchers.IO) {
+                safeReadBlocking(client, request)
+            }
+            if (response.records.isEmpty()) return "NO_HEIGHT_DATA"
 
-         return try {
-             Log.d(TAG, "📏 Reading height data...")
-
-             val timeFilter = createTimeFilter(startTime, endTime)
-
-             val allRecords = mutableListOf<HeightRecord>()
-             var pageToken: String? = null
-             var pageNumber = 1
-
-             do {
-                 val request = ReadRecordsRequest(
-                     recordType = HeightRecord::class,
-                     timeRangeFilter = timeFilter,
-                     pageSize = 1000,
-                     pageToken = pageToken
-                 )
-
-                 val response = runBlocking(Dispatchers.IO) {
-                     client.readRecords(request)
-                 }
-
-                 // log.d(TAG, "📄 Page $pageNumber: ${response.records.size} records")
-                 // log.d(TAG, "   Has more pages: ${response.pageToken != null}")
-
-                 allRecords.addAll(response.records)
-                 pageToken = response.pageToken
-                 pageNumber++
-
-             } while (pageToken != null)
-
-             Log.d(TAG, "📏 Total height records: ${allRecords.size}")
-
-             if (allRecords.isEmpty()) {
-                 return "NO_HEIGHT_DATA"
-             }
-
-             val sortedRecords = allRecords.sortedBy { it.time }
-
-             val arr = JSONArray()
-             sortedRecords.forEach { record ->
-                 val meters = record.height.inMeters
-                 val obj = JSONObject().apply {
-                     put("height_m", meters)
-                     put("time", record.time.toString())
-                 }
-                 arr.put(obj)
-             }
-
-             Log.d(TAG, "✅ Processed ${arr.length()} height records")
-
-             arr.toString()
-
-         } catch (e: SecurityException) {
-             Log.e(TAG, "❌ Security error reading height", e)
-             "SECURITY_ERROR"
-         } catch (e: Exception) {
-             Log.e(TAG, "❌ Error reading height", e)
-             "ERROR: ${e.message}"
-         }
-     }
+            val arr = JSONArray()
+            response.records.forEach { record ->
+                arr.put(JSONObject().apply {
+                    put("height_m", record.height.inMeters)
+                    put("time", record.time.toString())
+                })
+            }
+            arr.toString()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error reading height", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading height", e)
+            "ERROR: ${e.message}"
+        }
+    }
 
     /**
-     * ✅ خواندن وزن با بازه زمانی دلخواه
-     *
-     * @param startTime زمان شروع (ISO8601)
-     * @param endTime زمان پایان (ISO8601)
-     * @return JSON Array: [{"weight_kg": 75.5, "time": "2024-01-15T10:30:00Z"}, ...]
-     */
-     @JvmStatic
-     fun readWeight(
-         startTime: String? = null,
-         endTime: String? = null
-     ): String {
-         val client = healthConnectClient ?: return "CLIENT_NULL"
+    * ✅ خواندن وزن با بازه زمانی دلخواه
+    *
+    * @param startTime زمان شروع (ISO8601)
+    * @param endTime زمان پایان (ISO8601)
+    * @return JSON Array: [{"weight_kg": 75.5, "time": "2024-01-15T10:30:00Z"}, ...]
+    */
+    @JvmStatic
+    fun readWeight(
+        startTime: String? = null,
+        endTime: String? = null
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = WeightRecord::class,
+                timeRangeFilter = createTimeFilter(startTime, endTime),
+                ascendingOrder = true
+            )
+            val response = runBlocking(Dispatchers.IO) {
+                safeReadBlocking(client, request)
+            }
+            if (response.records.isEmpty()) return "NO_WEIGHT_DATA"
 
-         return try {
-             Log.d(TAG, "⚖️ Reading weight data...")
-
-             val timeFilter = createTimeFilter(startTime, endTime)
-
-             val allRecords = mutableListOf<WeightRecord>()
-             var pageToken: String? = null
-             var pageNumber = 1
-
-             do {
-                 val request = ReadRecordsRequest(
-                     recordType = WeightRecord::class,
-                     timeRangeFilter = timeFilter,
-                     pageSize = 1000,
-                     pageToken = pageToken
-                 )
-
-                 val response = runBlocking(Dispatchers.IO) {
-                     client.readRecords(request)
-                 }
-
-                 // log.d(TAG, "📄 Page $pageNumber: ${response.records.size} records")
-                 // log.d(TAG, "   Has more pages: ${response.pageToken != null}")
-
-                 allRecords.addAll(response.records)
-                 pageToken = response.pageToken
-                 pageNumber++
-
-             } while (pageToken != null)
-
-             Log.d(TAG, "⚖️ Total weight records: ${allRecords.size}")
-
-             if (allRecords.isEmpty()) {
-                 return "NO_WEIGHT_DATA"
-             }
-
-             val sortedRecords = allRecords.sortedBy { it.time }
-
-             val arr = JSONArray()
-             sortedRecords.forEach { record ->
-                 val kg = record.weight.inKilograms
-                 val obj = JSONObject().apply {
-                     put("weight_kg", kg)
-                     put("time", record.time.toString())
-                 }
-                 arr.put(obj)
-             }
-
-             Log.d(TAG, "✅ Processed ${arr.length()} weight records")
-
-             arr.toString()
-
-         } catch (e: SecurityException) {
-             Log.e(TAG, "❌ Security error reading weight", e)
-             "SECURITY_ERROR"
-         } catch (e: Exception) {
-             Log.e(TAG, "❌ Error reading weight", e)
-             "ERROR: ${e.message}"
-         }
-     }
+            val arr = JSONArray()
+            response.records.forEach { record ->
+                arr.put(JSONObject().apply {
+                    put("weight_kg", record.weight.inKilograms)
+                    put("time", record.time.toString())
+                })
+            }
+            arr.toString()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error reading weight", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading weight", e)
+            "ERROR: ${e.message}"
+        }
+    }
 
     /**
      * ✅ نوشتن قد با زمان دلخواه
@@ -534,82 +510,46 @@ object HealthBridge {
     }
 
     /**
-     * ✅ خواندن فشار خون با بازه زمانی دلخواه
-     *
-     * @param startTime زمان شروع (ISO8601)
-     * @param endTime زمان پایان (ISO8601)
-     * @return JSON Array: [{"systolic": 120, "diastolic": 80, "time": "..."}, ...]
-     */
-     @JvmStatic
-     fun readBloodPressure(
-         startTime: String? = null,
-         endTime: String? = null
-     ): String {
-         val client = healthConnectClient ?: return "CLIENT_NULL"
+    * ✅ خواندن فشار خون با بازه زمانی دلخواه
+    *
+    * @param startTime زمان شروع (ISO8601)
+    * @param endTime زمان پایان (ISO8601)
+    * @return JSON Array: [{"systolic": 120, "diastolic": 80, "time": "..."}, ...]
+    */
+    @JvmStatic
+    fun readBloodPressure(
+        startTime: String? = null,
+        endTime: String? = null
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = BloodPressureRecord::class,
+                timeRangeFilter = createTimeFilter(startTime, endTime),
+                ascendingOrder = true
+            )
+            val response = runBlocking(Dispatchers.IO) {
+                safeReadBlocking(client, request)
+            }
+            if (response.records.isEmpty()) return "NO_BLOOD_PRESSURE_DATA"
 
-         return try {
-             Log.d(TAG, "🩺 Reading blood pressure data...")
-
-             val timeFilter = createTimeFilter(startTime, endTime)
-
-             val allRecords = mutableListOf<BloodPressureRecord>()
-             var pageToken: String? = null
-             var pageNumber = 1
-
-             do {
-                 val request = ReadRecordsRequest(
-                     recordType = BloodPressureRecord::class,
-                     timeRangeFilter = timeFilter,
-                     pageSize = 1000,
-                     pageToken = pageToken
-                 )
-
-                 val response = runBlocking(Dispatchers.IO) {
-                     client.readRecords(request)
-                 }
-
-                 // log.d(TAG, "📄 Page $pageNumber: ${response.records.size} records")
-                 // log.d(TAG, "   Has more pages: ${response.pageToken != null}")
-
-                 allRecords.addAll(response.records)
-                 pageToken = response.pageToken
-                 pageNumber++
-
-             } while (pageToken != null)
-
-             Log.d(TAG, "🩺 Total blood pressure records: ${allRecords.size}")
-
-             if (allRecords.isEmpty()) {
-                 return "NO_BP_DATA"
-             }
-
-             val sortedRecords = allRecords.sortedBy { it.time }
-
-             val arr = JSONArray()
-             sortedRecords.forEach { record ->
-                 val systolic = record.systolic.inMillimetersOfMercury
-                 val diastolic = record.diastolic.inMillimetersOfMercury
-
-                 val obj = JSONObject().apply {
-                     put("systolic", systolic)
-                     put("diastolic", diastolic)
-                     put("time", record.time.toString())
-                 }
-                 arr.put(obj)
-             }
-
-             Log.d(TAG, "✅ Processed ${arr.length()} blood pressure records")
-
-             arr.toString()
-
-         } catch (e: SecurityException) {
-             Log.e(TAG, "❌ Security error reading blood pressure", e)
-             "SECURITY_ERROR"
-         } catch (e: Exception) {
-             Log.e(TAG, "❌ Error reading blood pressure", e)
-             "ERROR: ${e.message}"
-         }
-     }
+            val arr = JSONArray()
+            response.records.forEach { record ->
+                arr.put(JSONObject().apply {
+                    put("systolic", record.systolic.inMillimetersOfMercury)
+                    put("diastolic", record.diastolic.inMillimetersOfMercury)
+                    put("time", record.time.toString())
+                })
+            }
+            arr.toString()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error reading blood pressure", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading blood pressure", e)
+            "ERROR: ${e.message}"
+        }
+    }
 
     /**
      * ✅ نوشتن فشار خون
@@ -662,83 +602,45 @@ object HealthBridge {
 
 
     /**
-     * ✅ خواندن قند خون با بازه زمانی دلخواه
-     *
-     * @param startTime زمان شروع (ISO8601)
-     * @param endTime زمان پایان (ISO8601)
-     * @return JSON Array
-     */
-     @JvmStatic
-     fun readBloodGlucose(
-         startTime: String? = null,
-         endTime: String? = null
-     ): String {
-         val client = healthConnectClient ?: return "CLIENT_NULL"
+    * ✅ خواندن قند خون با بازه زمانی دلخواه
+    *
+    * @param startTime زمان شروع (ISO8601)
+    * @param endTime زمان پایان (ISO8601)
+    * @return JSON Array
+    */
+    @JvmStatic
+    fun readBloodGlucose(
+        startTime: String? = null,
+        endTime: String? = null
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = BloodGlucoseRecord::class,
+                timeRangeFilter = createTimeFilter(startTime, endTime),
+                ascendingOrder = true
+            )
+            val response = runBlocking(Dispatchers.IO) {
+                safeReadBlocking(client, request)
+            }
+            if (response.records.isEmpty()) return "NO_BLOOD_GLUCOSE_DATA"
 
-         return try {
-             Log.d(TAG, "🩸 Reading blood glucose data...")
-
-             val timeFilter = createTimeFilter(startTime, endTime)
-
-             val allRecords = mutableListOf<BloodGlucoseRecord>()
-             var pageToken: String? = null
-             var pageNumber = 1
-
-             do {
-                 val request = ReadRecordsRequest(
-                     recordType = BloodGlucoseRecord::class,
-                     timeRangeFilter = timeFilter,
-                     pageSize = 1000,
-                     pageToken = pageToken
-                 )
-
-                 val response = runBlocking(Dispatchers.IO) {
-                     client.readRecords(request)
-                 }
-
-                 // log.d(TAG, "📄 Page $pageNumber: ${response.records.size} records")
-                 // log.d(TAG, "   Has more pages: ${response.pageToken != null}")
-
-                 allRecords.addAll(response.records)
-                 pageToken = response.pageToken
-                 pageNumber++
-
-             } while (pageToken != null)
-
-             Log.d(TAG, "🩸 Total blood glucose records: ${allRecords.size}")
-
-             if (allRecords.isEmpty()) {
-                 return "NO_GLUCOSE_DATA"
-             }
-
-             val sortedRecords = allRecords.sortedBy { it.time }
-
-             val arr = JSONArray()
-             sortedRecords.forEach { record ->
-                 val mgDl = record.level.inMilligramsPerDeciliter
-
-                 val obj = JSONObject().apply {
-                     put("glucose_mg_dl", mgDl)
-                     put("time", record.time.toString())
-                     put("specimen_source", record.specimenSource)
-                     put("meal_type", record.mealType)
-                     put("relation_to_meal", record.relationToMeal)
-                 }
-                 arr.put(obj)
-             }
-
-             Log.d(TAG, "✅ Processed ${arr.length()} blood glucose records")
-
-             arr.toString()
-
-         } catch (e: SecurityException) {
-             Log.e(TAG, "❌ Security error reading blood glucose", e)
-             "SECURITY_ERROR"
-         } catch (e: Exception) {
-             Log.e(TAG, "❌ Error reading blood glucose", e)
-             "ERROR: ${e.message}"
-         }
-     }
+            val arr = JSONArray()
+            response.records.forEach { record ->
+                arr.put(JSONObject().apply {
+                    put("mmol_per_l", record.level.inMillimolesPerLiter)
+                    put("time", record.time.toString())
+                })
+            }
+            arr.toString()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error reading blood glucose", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading blood glucose", e)
+            "ERROR: ${e.message}"
+        }
+    }
 
     /**
      * ✅ نوشتن قند خون با تمام جزئیات
@@ -803,74 +705,28 @@ object HealthBridge {
         endTime: String? = null
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
-
         return try {
-            Log.d(TAG, "❤️ Reading heart rate data...")
-
-            val timeFilter = createTimeFilter(startTime, endTime)
-
-            val allRecords = mutableListOf<HeartRateRecord>()
-            var pageToken: String? = null
-            var pageNumber = 1
-
-            do {
-                val request = ReadRecordsRequest(
-                    recordType = HeartRateRecord::class,
-                    timeRangeFilter = timeFilter,
-                    pageSize = 1000,
-                    pageToken = pageToken
-                )
-
-                val response = runBlocking(Dispatchers.IO) {
-                    client.readRecords(request)
-                }
-
-                allRecords.addAll(response.records)
-                pageToken = response.pageToken
-                pageNumber++
-
-            } while (pageToken != null)
-
-            Log.d(TAG, "❤️ Total heart rate records: ${allRecords.size}")
-
-            if (allRecords.isEmpty()) {
-                return "NO_HEART_RATE_DATA"
+            val request = ReadRecordsRequest(
+                recordType = HeartRateRecord::class,
+                timeRangeFilter = createTimeFilter(startTime, endTime),
+                ascendingOrder = true
+            )
+            val response = runBlocking(Dispatchers.IO) {
+                safeReadBlocking(client, request)
             }
-
-            // استخراج تمام samples
-            val allSamples = mutableListOf<Pair<Long, Long>>()
-            var totalSamples = 0
-
-            allRecords.forEach { record ->
-                record.samples.forEach { sample ->
-                    val timestamp = sample.time.toEpochMilli()
-                    val bpm = sample.beatsPerMinute
-                    allSamples.add(Pair(timestamp, bpm))
-                    totalSamples++
-                }
-            }
-
-            Log.d(TAG, "❤️ Total samples: $totalSamples")
-
-            // مرتب‌سازی بر اساس زمان
-            val sortedSamples = allSamples.sortedBy { it.first }
-
-            // حذف تکراری‌ها
-            val uniqueSamples = sortedSamples.distinctBy { it.first }
+            if (response.records.isEmpty()) return "NO_HEART_RATE_DATA"
 
             val arr = JSONArray()
-            uniqueSamples.forEach { (timestamp, bpm) ->
-                val obj = JSONObject().apply {
-                    put("bpm", bpm)
-                    put("time", Instant.ofEpochMilli(timestamp).toString())
+            response.records.forEach { record ->
+                record.samples.forEach { sample ->
+                    arr.put(JSONObject().apply {
+                        put("bpm", sample.beatsPerMinute)
+                        put("time", sample.time.toString())
+                    })
                 }
-                arr.put(obj)
             }
-
-            Log.d(TAG, "✅ Processed ${arr.length()} heart rate samples")
-
+            if (arr.length() == 0) return "NO_HEART_RATE_DATA"
             arr.toString()
-
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Security error reading heart rate", e)
             "SECURITY_ERROR"
@@ -926,75 +782,43 @@ object HealthBridge {
     }
 
     /**
-     * ✅ خواندن رکوردهای اشباع اکسیژن خون (SpO₂)
-     *
-     * @return آرایهٔ JSON شامل درصد، زمان، نمونه‌ها و متادیتا؛ یا پیام خطا
-     */
-     @JvmStatic
-     fun readOxygenSaturation(
-         startTime: String? = null,
-         endTime: String? = null
-     ): String {
-         val client = healthConnectClient ?: return "CLIENT_NULL"
+    * ✅ خواندن رکوردهای اشباع اکسیژن خون (SpO₂)
+    *
+    * @return آرایهٔ JSON شامل درصد، زمان، نمونه‌ها و متادیتا؛ یا پیام خطا
+    */
+    @JvmStatic
+    fun readOxygenSaturation(
+        startTime: String? = null,
+        endTime: String? = null
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = OxygenSaturationRecord::class,
+                timeRangeFilter = createTimeFilter(startTime, endTime),
+                ascendingOrder = true
+            )
+            val response = runBlocking(Dispatchers.IO) {
+                safeReadBlocking(client, request)
+            }
+            if (response.records.isEmpty()) return "NO_OXYGEN_DATA"
 
-         return try {
-             Log.d(TAG, "🫁 Reading oxygen saturation...")
-
-             val timeFilter = createTimeFilter(startTime, endTime)
-
-             val allRecords = mutableListOf<OxygenSaturationRecord>()
-             var pageToken: String? = null
-             var pageNumber = 1
-
-             do {
-                 val request = ReadRecordsRequest(
-                     recordType = OxygenSaturationRecord::class,
-                     timeRangeFilter = timeFilter,
-                     pageSize = 1000,
-                     pageToken = pageToken
-                 )
-
-                 val response = runBlocking(Dispatchers.IO) {
-                     client.readRecords(request)
-                 }
-
-                 allRecords.addAll(response.records)
-                 pageToken = response.pageToken
-                 pageNumber++
-
-             } while (pageToken != null)
-
-             Log.d(TAG, "🫁 Total oxygen saturation records: ${allRecords.size}")
-
-             if (allRecords.isEmpty()) {
-                 return "NO_OXYGEN_DATA"
-             }
-
-             val sortedRecords = allRecords.sortedBy { it.time }
-
-             val arr = JSONArray()
-             sortedRecords.forEach { record ->
-                 val percentage = record.percentage.value
-
-                 val obj = JSONObject().apply {
-                     put("percentage", percentage)
-                     put("time", record.time.toString())
-                 }
-                 arr.put(obj)
-             }
-
-             Log.d(TAG, "✅ Processed ${arr.length()} SpO2 records")
-
-             arr.toString()
-
-         } catch (e: SecurityException) {
-             Log.e(TAG, "❌ Security error while reading oxygen saturation", e)
-             "SECURITY_ERROR"
-         } catch (e: Exception) {
-             Log.e(TAG, "❌ Error reading oxygen saturation", e)
-             "ERROR: ${e.message}"
-         }
-     }
+            val arr = JSONArray()
+            response.records.forEach { record ->
+                arr.put(JSONObject().apply {
+                    put("percentage", record.percentage.value)
+                    put("time", record.time.toString())
+                })
+            }
+            arr.toString()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error reading oxygen saturation", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading oxygen saturation", e)
+            "ERROR: ${e.message}"
+        }
+    }
 
     /**
      * ✅ نوشتن یک رکورد اشباع اکسیژن خون (SpO₂)
