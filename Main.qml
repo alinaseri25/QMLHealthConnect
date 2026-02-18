@@ -21,6 +21,7 @@ Rectangle {
 
     // ===== Signals =====
     signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation)
+    signal exportSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation)
     signal setHeight(double value)
     signal setWeight(double value)
     signal setBloodPressure(int systolic, int diastolic)
@@ -191,7 +192,88 @@ Rectangle {
         }
     }
 
+    // ===== دکمه Export =====
+    CButton {
+        id: exportBtn
+        themeManager: appTheme
 
+        text: "⬇ Export"
+        width: 120
+        height: 42
+
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 16
+
+        z: 3
+
+        // ✅ رنگ متمایز از دکمه‌های عادی (اختیاری)
+        bgColor: appTheme.accentColor
+        bgPressed: appTheme.accentPressed
+        textColor: appTheme.primaryTextColor
+
+        tooltipText: "Export data to Excel"
+        tooltipTarget: globalTooltip  // اگه tooltip سراسری داری
+
+        onClicked: {
+            exportSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
+                          chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+        }
+    }
+
+    // ===== Export Toast / Snackbar =====
+    Rectangle {
+        id: exportToast
+
+        property bool isSuccess: true
+
+        function show(success, msg) {
+            isSuccess = success
+            toastText.text = success ? "✅ فایل در Downloads ذخیره شد" : "❌ " + msg
+            toastAnim.restart()
+        }
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 24
+
+        width: toastText.implicitWidth + 40
+        height: 44
+        radius: 22
+        z: 10
+
+        color: isSuccess ? "#2E7D32" : "#C62828"
+        opacity: 0
+        visible: opacity > 0
+
+        Text {
+            id: toastText
+            anchors.centerIn: parent
+            font.pixelSize: 14
+            font.family: "Vazir"
+            color: "white"
+        }
+
+        SequentialAnimation {
+            id: toastAnim
+
+            NumberAnimation {
+                target: exportToast
+                property: "opacity"
+                to: 0.95
+                duration: 250
+                easing.type: Easing.OutCubic
+            }
+            PauseAnimation { duration: 2500 }
+            NumberAnimation {
+                target: exportToast
+                property: "opacity"
+                to: 0
+                duration: 400
+                easing.type: Easing.InCubic
+            }
+        }
+    }
 
     // ===== دکمه تغییر تم =====
     ThemeToggle {
@@ -266,6 +348,7 @@ Rectangle {
     // ===== اتصالات Backend =====
     Component.onCompleted: {
         updateSignal.connect(myBackend.onUpdateRequest)
+        exportSignal.connect(myBackend.onExportRequest)
         setHeight.connect(myBackend.writeHeight)
         setWeight.connect(myBackend.writeWeight)
         setBloodPressure.connect(myBackend.writeBloodPressure)
@@ -278,6 +361,12 @@ Rectangle {
 
     Connections {
         target: myBackend
+
+        function onExportCompleted(success, message)
+        {
+            console.log(message)
+            exportToast.show(success, message)
+        }
 
         function onHeightWritten(success, message) {
             if (success) {
