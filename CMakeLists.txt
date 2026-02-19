@@ -75,10 +75,6 @@ if(ANDROID)
         QT_ANDROID_VERSION_NAME "${VERSION_STRING}"
         QT_ANDROID_VERSION_CODE "${VERSION_CODE}"
     )
-
-    # ✅ پیام debug
-    message(STATUS "Android Version Name: ${VERSION_STRING}")
-    message(STATUS "Android Version Code: ${VERSION_CODE}")
 endif()
 
 set_target_properties(QMLHealthConnect PROPERTIES
