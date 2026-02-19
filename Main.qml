@@ -18,6 +18,7 @@ Rectangle {
     }
 
     property int statusResetDelay: 7000
+    property int updateInterval: 10
 
     // ===== Signals =====
     signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation)
@@ -138,8 +139,8 @@ Rectangle {
         oxygenSaturationSeries: chartView.oxygenSaturationSeries
 
         onUpdateRequested: {
-            mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,
-                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+            loadingOverlay.show()
+            startUpdate.restart()
         }
     }
 
@@ -168,26 +169,32 @@ Rectangle {
         z: 3
 
         onHeightSubmitted: (value) => {
+            loadingOverlay.show()
             mainView.setHeight(value)
         }
 
         onWeightSubmitted: (value) => {
+            loadingOverlay.show()
             mainView.setWeight(value)
         }
 
         onBloodPressureSubmitted: (systolic, diastolic) => {
+            loadingOverlay.show()
             mainView.setBloodPressure(systolic, diastolic)
         }
 
         onHeartRateSubmitted: (value) => {
+            loadingOverlay.show()
             mainView.setHeartRate(value)
         }
 
         onBloodGlucoseSubmitted: (glucoseMgDl, specimenSource, mealType, relationToMeal) => {
+            loadingOverlay.show()
             mainView.setBloodGlucose(glucoseMgDl, specimenSource, mealType, relationToMeal)
         }
 
         onOxygenSaturationSubmitted:(value)=>{
+            loadingOverlay.show()
             setOxygenSaturation(value)
         }
     }
@@ -221,58 +228,14 @@ Rectangle {
         }
     }
 
-    // ===== Export Toast / Snackbar =====
-    Rectangle {
+    Toast {
         id: exportToast
+        themeManager: appTheme
+    }
 
-        property bool isSuccess: true
-
-        function show(success, msg) {
-            isSuccess = success
-            toastText.text = success ? "✅ فایل در Downloads ذخیره شد" : "❌ " + msg
-            toastAnim.restart()
-        }
-
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 24
-
-        width: toastText.implicitWidth + 40
-        height: 44
-        radius: 22
-        z: 10
-
-        color: isSuccess ? "#2E7D32" : "#C62828"
-        opacity: 0
-        visible: opacity > 0
-
-        Text {
-            id: toastText
-            anchors.centerIn: parent
-            font.pixelSize: 14
-            font.family: "Vazir"
-            color: "white"
-        }
-
-        SequentialAnimation {
-            id: toastAnim
-
-            NumberAnimation {
-                target: exportToast
-                property: "opacity"
-                to: 0.95
-                duration: 250
-                easing.type: Easing.OutCubic
-            }
-            PauseAnimation { duration: 2500 }
-            NumberAnimation {
-                target: exportToast
-                property: "opacity"
-                to: 0
-                duration: 400
-                easing.type: Easing.InCubic
-            }
-        }
+    LoadingOverlay {
+        id: loadingOverlay
+        themeManager: appTheme
     }
 
     // ===== دکمه تغییر تم =====
@@ -284,6 +247,15 @@ Rectangle {
         z: 3  // ✅ z-index بالاتر
     }
 
+    Timer{
+        id: startUpdate
+        interval: mainView.updateInterval
+        repeat: false
+        onTriggered: {
+            mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,
+                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+        }
+    }
     // ===== Timers برای ریست وضعیت =====
     Timer {
         id: heightStatusTimer
@@ -365,15 +337,14 @@ Rectangle {
         function onExportCompleted(success, message)
         {
             console.log(message)
-            exportToast.show(success, message)
+            exportToast.showMessage(success, message)
         }
 
         function onHeightWritten(success, message) {
             if (success) {
                 inputPanel.heightStatusText = "✅ قد " + message + " ثبت شد"
                 inputPanel.heightStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
-                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                startUpdate.restart()
             } else {
                 inputPanel.heightStatusText = "❌ " + message
                 inputPanel.heightStatusColor = "red"
@@ -385,8 +356,7 @@ Rectangle {
             if (success) {
                 inputPanel.weightStatusText = "✅ وزن " + message + " ثبت شد"
                 inputPanel.weightStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
-                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                startUpdate.restart()
             } else {
                 inputPanel.weightStatusText = "❌ " + message
                 inputPanel.weightStatusColor = "red"
@@ -398,8 +368,7 @@ Rectangle {
             if (success) {
                 inputPanel.bpStatusText = "✅ فشار خون " + message + " ثبت شد"
                 inputPanel.bpStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
-                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                startUpdate.restart()
             } else {
                 inputPanel.bpStatusText = "❌ " + message
                 inputPanel.bpStatusColor = "red"
@@ -411,8 +380,7 @@ Rectangle {
             if (success) {
                 inputPanel.heartRateStatusText = "✅ ضربان قلب " + message + " ثبت شد"
                 inputPanel.heartRateStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
-                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                startUpdate.restart()
             } else {
                 inputPanel.heartRateStatusText = "❌ " + message
                 inputPanel.heartRateStatusColor = "red"
@@ -424,8 +392,7 @@ Rectangle {
             if (success) {
                 inputPanel.bloodGlucoseStatusText = "✅ قند خون " + message + " ثبت شد"
                 inputPanel.bloodGlucoseStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
-                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                startUpdate.restart()
             } else {
                 inputPanel.bloodGlucoseStatusText = "❌ " + message
                 inputPanel.bloodGlucoseStatusColor = "red"
@@ -437,8 +404,7 @@ Rectangle {
             if (success) {
                 inputPanel.oxygenSaturationStatusText = "✅ اکسیژن خون " + message + " ثبت شد"
                 inputPanel.oxygenSaturationStatusColor = "green"
-                mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,chartView.bloodGlucoseAxisVisible,
-                                      chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                startUpdate.restart()
             } else {
                 inputPanel.oxygenSaturationStatusText = "❌ " + message
                 inputPanel.oxygenSaturationStatusColor = "red"
@@ -455,147 +421,122 @@ Rectangle {
             chartView.bloodGlucoseSeries.clear()
             chartView.oxygenSaturationSeries.clear()
 
-            // ✅ تعریف متغیرها با مقادیر پیش‌فرض
-            let minH = 140, maxH = 200
-            let minW = 50, maxW = 120
-            let minBP = 60, maxBP = 140
-            let minHR = 50, maxHR = 120
-            let minBG = 70, maxBG = 200
-            let minSpo2 = 85, maxSpo2 = 100
-
-            // محاسبه minTime
             let minTime = Number.MAX_VALUE
-            if (hList.length > 0)
-            {
-                if(hList[0].x < minTime) minTime = hList[0].x
-                minH = hList[0].y - 10
-                maxH = hList[0].y + 10
-            }
-            if (wList.length > 0)
-            {
-                if(wList[0].x < minTime) minTime = wList[0].x
-                minW = wList[0].y - 1
-                maxW = wList[0].y + 1
-            }
-            if (bpSystolicList.length > 0)
-            {
-                if(bpSystolicList[0].x < minTime) minTime = bpSystolicList[0].x
-            }
-            if (heartRateList.length > 0)
-            {
-                if(heartRateList[0].x < minTime) minTime = heartRateList[0].x
-            }
-            if (bloodGlucoseList.length > 0)
-            {
-                if(bloodGlucoseList[0].x < minTime) minTime = bloodGlucoseList[0].x
-            }
-            if (oxygenSaturationList.length > 0 && oxygenSaturationList[0].x < minTime)
-            {
-                minTime = oxygenSaturationList[0].x
-                minSpo2 = oxygenSaturationList[0].y - 1
-                maxSpo2 = oxygenSaturationList[0].y + 1
-            }
 
             if (hList.length > 0) {
+                let minH = 140, maxH = 200
                 minH = (hList[0].y * 100) - 10
                 maxH = (hList[0].y * 100) + 10
+                if(hList[0].x < minTime) minTime = hList[0].x
+                // پردازش داده‌های قد
+                for (let i = 0; i < hList.length; i++) {
+                    let hi = hList[i].y * 100
+                    chartView.heightSeries.append(hList[i].x, hi)
+                    if (hi < minH) minH = hi - 10
+                    if (hi > maxH) maxH = hi + 10
+                }
+
+                chartView.heightAxis.min = minH
+                chartView.heightAxis.max = maxH
             }
+
             if (wList.length > 0) {
+                let minW = 50, maxW = 120
                 minW = wList[0].y - 1
                 maxW = wList[0].y + 1
+                if(wList[0].x < minTime) minTime = wList[0].x
+                // پردازش داده‌های وزن
+                for (let i = 0; i < wList.length; i++) {
+                    let wi = wList[i].y
+                    chartView.weightSeries.append(wList[i].x, wi)
+                    if (wi < minW) minW = wi - 1
+                    if (wi > maxW) maxW = wi + 1
+                }
+
+                chartView.weightAxis.min = minW
+                chartView.weightAxis.max = maxW
             }
+
             if (bpDiastolicList.length > 0) {
+                let minBP = 60, maxBP = 140
                 minBP = bpDiastolicList[0].y - 1
                 maxBP = bpSystolicList[0].y + 1
+                if(bpSystolicList[0].x < minTime) minTime = bpSystolicList[0].x
+                // پردازش داده‌های فشار خون
+                for (let i = 0; i < bpSystolicList.length; i++) {
+                    chartView.bpSystolicSeries.append(bpSystolicList[i].x, bpSystolicList[i].y)
+                    chartView.bpDiastolicSeries.append(bpDiastolicList[i].x, bpDiastolicList[i].y)
+
+                    if (bpSystolicList[i].y < minBP) minBP = bpSystolicList[i].y
+                    if (bpSystolicList[i].y > maxBP) maxBP = bpSystolicList[i].y
+                    if (bpDiastolicList[i].y < minBP) minBP = bpDiastolicList[i].y
+                    if (bpDiastolicList[i].y > maxBP) maxBP = bpDiastolicList[i].y
+                }
+
+                let bpMargin = (maxBP - minBP) * 0.1
+                chartView.bpAxis.min = minBP - bpMargin
+                chartView.bpAxis.max = maxBP + bpMargin
             }
+
             if (heartRateList.length > 0) {
+                let minHR = 50, maxHR = 120
                 minHR = heartRateList[0].y - 1
                 maxHR = heartRateList[0].y + 1
+                if(heartRateList[0].x < minTime) minTime = heartRateList[0].x
+                // === پردازش ضربان قلب ===
+                console.log("heartRateList siz : " + heartRateList.length)
+                for (let i = 0; i < heartRateList.length; i++) {
+                    let hr = heartRateList[i].y
+                    chartView.heartRateSeries.append(heartRateList[i].x, hr)
+                    if (hr < minHR) minHR = hr - 1
+                    if (hr > maxHR) maxHR = hr + 1
+                }
+
+                chartView.hrAxis.min = minHR
+                chartView.hrAxis.max = maxHR
             }
+
             if (bloodGlucoseList.length > 0) {
+                let minBG = 70, maxBG = 200
                 minBG = bloodGlucoseList[0].y - 1
                 maxBG = bloodGlucoseList[0].y + 1
+                if(bloodGlucoseList[0].x < minTime) minTime = bloodGlucoseList[0].x
+                // === پردازش قند خون ===
+                for (let i = 0; i < bloodGlucoseList.length; i++) {
+                    let bg = bloodGlucoseList[i].y
+                    chartView.bloodGlucoseSeries.append(bloodGlucoseList[i].x, bg)
+                    if (bg < minBG) minBG = bg - 2
+                    if (bg > maxBG) maxBG = bg + 2
+                }
+
+                chartView.bgAxis.min = minBG
+                chartView.bgAxis.max = maxBG
             }
+
             if (oxygenSaturationList.length > 0) {
-                minH = (oxygenSaturationList[0].y * 100) - 10
-                maxH = (oxygenSaturationList[0].y * 100) + 10
+                let minSpo2 = 85, maxSpo2 = 100
+                minSpo2 = oxygenSaturationList[0].y - 1
+                maxSpo2 = oxygenSaturationList[0].y + 1
+                if(maxSpo2 > 100) maxSpo2 = 100
+                if(oxygenSaturationList[0].x < minTime) minTime = oxygenSaturationList[0].x
+                // پردازش داده‌های SPO2
+                for (let i = 0; i < oxygenSaturationList.length; i++) {
+                    let Spoi = oxygenSaturationList[i].y
+                    chartView.oxygenSaturationSeries.append(oxygenSaturationList[i].x, Spoi)
+                    if (Spoi < minSpo2) minSpo2 = Spoi - 1
+                    if (Spoi > maxSpo2) maxSpo2 = Spoi + 1
+                }
+
+                chartView.spo2Axis.min = minSpo2
+                chartView.spo2Axis.max = maxSpo2
             }
 
-            // پردازش داده‌های قد
-            for (let i = 0; i < hList.length; i++) {
-                let hi = hList[i].y * 100
-                chartView.heightSeries.append(hList[i].x, hi)
-                if (hi < minH) minH = hi - 10
-                if (hi > maxH) maxH = hi + 10
-            }
-
-            // پردازش داده‌های وزن
-            for (let i = 0; i < wList.length; i++) {
-                let wi = wList[i].y
-                chartView.weightSeries.append(wList[i].x, wi)
-                if (wi < minW) minW = wi - 1
-                if (wi > maxW) maxW = wi + 1
-            }
-
-            // پردازش داده‌های فشار خون
-            for (let i = 0; i < bpSystolicList.length; i++) {
-                chartView.bpSystolicSeries.append(bpSystolicList[i].x, bpSystolicList[i].y)
-                chartView.bpDiastolicSeries.append(bpDiastolicList[i].x, bpDiastolicList[i].y)
-
-                if (bpSystolicList[i].y < minBP) minBP = bpSystolicList[i].y
-                if (bpSystolicList[i].y > maxBP) maxBP = bpSystolicList[i].y
-                if (bpDiastolicList[i].y < minBP) minBP = bpDiastolicList[i].y
-                if (bpDiastolicList[i].y > maxBP) maxBP = bpDiastolicList[i].y
-            }
-
-            // === پردازش ضربان قلب ===
-            console.log("heartRateList siz : " + heartRateList.length)
-            for (let i = 0; i < heartRateList.length; i++) {
-                let hr = heartRateList[i].y
-                chartView.heartRateSeries.append(heartRateList[i].x, hr)
-                if (hr < minHR) minHR = hr - 1
-                if (hr > maxHR) maxHR = hr + 1
-            }
-
-            // === پردازش قند خون ===
-            for (let i = 0; i < bloodGlucoseList.length; i++) {
-                let bg = bloodGlucoseList[i].y
-                chartView.bloodGlucoseSeries.append(bloodGlucoseList[i].x, bg)
-                if (bg < minBG) minBG = bg - 2
-                if (bg > maxBG) maxBG = bg + 2
-            }
-
-            console.log("oxygenSaturationList siz : " + oxygenSaturationList.length)
-            // پردازش داده‌های SPO2
-            for (let i = 0; i < oxygenSaturationList.length; i++) {
-                let Spoi = oxygenSaturationList[i].y
-                chartView.oxygenSaturationSeries.append(oxygenSaturationList[i].x, Spoi)
-                if (Spoi < minSpo2) minSpo2 = Spoi - 1
-                if (Spoi > maxSpo2) maxSpo2 = Spoi + 1
-            }
-
-            // تنظیم محدوده محورها
-            chartView.heightAxis.min = minH
-            chartView.heightAxis.max = maxH
-
-            chartView.weightAxis.min = minW
-            chartView.weightAxis.max = maxW
-
-            let bpMargin = (maxBP - minBP) * 0.1
-            chartView.bpAxis.min = minBP - bpMargin
-            chartView.bpAxis.max = maxBP + bpMargin
-
-            chartView.hrAxis.min = minHR
-            chartView.hrAxis.max = maxHR
-
-            chartView.bgAxis.min = minBG
-            chartView.bgAxis.max = maxBG
-
-            chartView.spo2Axis.min = minSpo2
-            chartView.spo2Axis.max = maxSpo2
-
+            // تنظیم محدوده محورهای زمان
             chartView.xAxis.min = new Date(minTime)
             chartView.xAxis.max = new Date(Date.now())
+
+
+            loadingOverlay.hide()
         }
     }
 }

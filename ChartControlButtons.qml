@@ -207,6 +207,7 @@ Item {
         }
 
         CButton {
+            id: chartUpdate
             themeManager: root.themeManager
             text: "Update"
             width: 80
