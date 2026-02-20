@@ -4,7 +4,7 @@ import QtQuick.Controls
 Rectangle {
     id: root
 
-    property bool expanded: true
+    property bool expanded: false
 
     // ✅ FIX: استفاده از required برای اطمینان از ارسال themeManager
     required property var themeManager
@@ -16,6 +16,45 @@ Rectangle {
     signal heartRateSubmitted(double bpm)
     signal bloodGlucoseSubmitted(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
     signal oxygenSaturationSubmitted(double value)
+
+    // ── بازه زمانی ──
+    signal dateRangePickerRequested(string target, var initialDate)
+
+    property var fromDateTime: {
+        var d = new Date()
+        d.setMonth(d.getMonth() - 1)
+        return d
+    }
+    property var toDateTime: new Date()
+    property string _activeDateTarget: "from"
+
+    function applySelectedDate(selectedDate) {
+        if (_activeDateTarget === "from") {
+            fromDateTime = selectedDate
+            fromLabel.text = Qt.formatDateTime(selectedDate, "yyyy/MM/dd  HH:mm")
+        } else {
+            toDateTime = selectedDate
+            toLabel.text = Qt.formatDateTime(selectedDate, "yyyy/MM/dd  HH:mm")
+        }
+    }
+
+    function parseDateTime(text) {
+        var regex = /^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})$/
+        var match = text.match(regex)
+        if (!match) return new Date()
+        return new Date(parseInt(match[1]), parseInt(match[2])-1,
+                        parseInt(match[3]), parseInt(match[4]), parseInt(match[5]))
+    }
+
+    function formatDate(d) {
+        if (!d || !(d instanceof Date) || isNaN(d.getTime())) {
+            return Qt.formatDateTime(new Date(), "yyyy/MM/dd  hh:mm")
+        }
+        return Qt.formatDateTime(d, "yyyy/MM/dd  hh:mm")
+    }
+
+    function getFromDate() { return parseDateTime(fromLabel.text) }
+    function getToDate()   { return parseDateTime(toLabel.text)   }
 
     // Properties برای نمایش وضعیت
     property alias heightStatusText: heightStatus.text
@@ -64,6 +103,131 @@ Rectangle {
             width: root.width - 20
             spacing: 20
             padding: 15
+
+            // ===== بخش بازه زمانی خواندن داده =====
+            Column {
+                width: parent.width
+                spacing: 8
+
+                Text {
+                    text: "📆 بازه زمانی نمایش"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: root.themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                // ─── از ───
+                Text {
+                    text: "از:"
+                    font.pixelSize: 12
+                    color: root.themeManager.secondaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 44
+                    radius: 6
+                    color: root.themeManager.inputBackgroundColor
+                    border.color: fromHover.containsMouse
+                                  ? root.themeManager.accentColor
+                                  : root.themeManager.inputBorderColor
+                    border.width: 1
+
+                    Behavior on color       { ColorAnimation { duration: 200 } }
+                    Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 7
+
+                        Text {
+                            text: "📅"
+                            font.pixelSize: 15
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            id: fromLabel
+                            font.pixelSize: 13
+                            color: root.themeManager.primaryTextColor
+                            text : formatDate(root.fromDateTime)
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+                    }
+
+                    MouseArea {
+                        id: fromHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root._activeDateTarget = "from"
+                            root.dateRangePickerRequested("from", root.fromDateTime)
+                        }
+                    }
+                }
+
+                // ─── تا ───
+                Text {
+                    text: "تا:"
+                    font.pixelSize: 12
+                    color: root.themeManager.secondaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 44
+                    radius: 6
+                    color: root.themeManager.inputBackgroundColor
+                    border.color: toHover.containsMouse
+                                  ? root.themeManager.accentColor
+                                  : root.themeManager.inputBorderColor
+                    border.width: 1
+
+                    Behavior on color       { ColorAnimation { duration: 200 } }
+                    Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 7
+
+                        Text {
+                            text: "📅"
+                            font.pixelSize: 15
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            id: toLabel
+                            font.pixelSize: 13
+                            text: formatDate(root.toDateTime)
+                            color: root.themeManager.primaryTextColor
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+                    }
+
+                    MouseArea {
+                        id: toHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root._activeDateTarget = "to"
+                            root.dateRangePickerRequested("to", root.toDateTime)
+                        }
+                    }
+                }
+            }
+
+            Divider {
+                themeManager: root.themeManager
+            }
+
 
             // ===== بخش قد =====
             Column {
@@ -717,4 +881,5 @@ Rectangle {
             }
         }
     }
+
 }

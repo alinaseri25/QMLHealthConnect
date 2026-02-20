@@ -18,16 +18,6 @@ Item {
 
     signal updateRequested()
 
-    // ✅ خط جداکننده زیر هدر
-    // Rectangle {
-    //     anchors.bottom: parent.bottom
-    //     anchors.left: parent.left
-    //     anchors.right: parent.right
-    //     height: 1
-    //     color: themeManager.panelBorderColor
-    //     Behavior on color { ColorAnimation { duration: 300 } }
-    // }
-
     /**
      * ✅ تنظیم visibility اولیه برای تمام سری‌ها و محورها
      *

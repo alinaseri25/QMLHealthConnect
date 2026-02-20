@@ -7,7 +7,7 @@ Backend::Backend(QObject *parent)
     checkPermissions();
 }
 
-void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool hr, bool spo2)
+void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool hr, bool spo2, QDateTime startFrom, QDateTime endTo)
 {
     hList.clear();
     wList.clear();
@@ -23,8 +23,8 @@ void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool h
     qDebug() << "✅ Reading data...";
 
     // ✅ ساخت بازه زمانی: یک ماه اخیر تا الان
-    QString startTime = isoStringMonthsAgo(1);
-    QString endTime   = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString startTime = startFrom.toUTC().toString(Qt::ISODateWithMs); //isoStringMonthsAgo(1);
+    QString endTime   = endTo.toUTC().toString(Qt::ISODateWithMs); //QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
 
     qDebug() << "📅 Time range:" << startTime << "→" << endTime;
 
@@ -115,7 +115,7 @@ void Backend::onExportRequest(bool height, bool weight, bool bp, bool bg, bool h
 #endif
 }
 
-void Backend::writeHeight(double heightMeters)
+void Backend::writeHeight(double heightMeters,QDateTime dt)
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
@@ -134,7 +134,7 @@ void Backend::writeHeight(double heightMeters)
     }
 
     // ✅ دریافت زمان فعلی به فرمت ISO8601
-    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toUTC().toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     // ✅ فراخوانی متد Kotlin با پارامتر زمان
@@ -162,7 +162,7 @@ void Backend::writeHeight(double heightMeters)
 #endif
 }
 
-void Backend::writeWeight(double weightKg)
+void Backend::writeWeight(double weightKg,QDateTime dt)
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
@@ -180,7 +180,7 @@ void Backend::writeWeight(double weightKg)
     }
 
     // ✅ دریافت زمان فعلی
-    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toUTC().toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     QJniObject result = QJniObject::callStaticObjectMethod(
@@ -208,7 +208,7 @@ void Backend::writeWeight(double weightKg)
 
 }
 
-void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
+void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg, QDateTime dt)
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
@@ -241,7 +241,7 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
     }
 
     // ✅ دریافت زمان
-    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toUTC().toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     QJniObject result = QJniObject::callStaticObjectMethod(
@@ -269,7 +269,7 @@ void Backend::writeBloodPressure(double systolicMmHg, double diastolicMmHg)
 #endif
 }
 
-void Backend::writeHeartRate(int bpm)
+void Backend::writeHeartRate(int bpm,QDateTime dt)
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
@@ -288,7 +288,7 @@ void Backend::writeHeartRate(int bpm)
     }
 
     // ✅ دریافت زمان
-    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     QJniObject result = QJniObject::callStaticObjectMethod(
@@ -315,7 +315,7 @@ void Backend::writeHeartRate(int bpm)
 #endif
 }
 
-void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
+void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal, QDateTime dt)
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
@@ -350,7 +350,7 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
     }
 
     // ✅ دریافت زمان
-    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     QJniObject result = QJniObject::callStaticObjectMethod(
@@ -380,7 +380,7 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
 #endif
 }
 
-void Backend::writeOxygenSaturation(double percentage)
+void Backend::writeOxygenSaturation(double percentage, QDateTime dt)
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
@@ -405,7 +405,7 @@ void Backend::writeOxygenSaturation(double percentage)
     }
 
     // ✅ دریافت زمان فعلی به فرمت ISO8601
-    QString currentTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     // ✅ فراخوانی متد Kotlin

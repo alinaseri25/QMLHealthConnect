@@ -31,15 +31,17 @@ public:
     explicit Backend(QObject *parent = nullptr);
 
 public slots:
-    void onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr,bool spo2);
+    void onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr,bool spo2
+                         ,QDateTime startFrom = QDateTime::currentDateTime().addMonths(-1),QDateTime endTo = QDateTime::currentDateTime());
     void onExportRequest(bool height,bool weight,bool bp,bool bg,bool hr,bool spo2);
-    void writeHeight(double heightMeters);
-    void writeWeight(double weightKg);
-    void writeBloodPressure(double systolicMmHg, double diastolicMmHg);
-    void writeHeartRate(int bpm);
+    void writeHeight(double heightMeters,QDateTime dt = QDateTime::currentDateTime());
+    void writeWeight(double weightKg,QDateTime dt = QDateTime::currentDateTime());
+    void writeBloodPressure(double systolicMmHg, double diastolicMmHg,QDateTime dt = QDateTime::currentDateTime());
+    void writeHeartRate(int bpm,QDateTime dt = QDateTime::currentDateTime());
     void writeBloodGlucose(double glucoseMgDl, int specimenSource = 2,
-                           int mealType = 0, int relationToMeal = 0);
-    void writeOxygenSaturation(double percentage);
+                           int mealType = 0, int relationToMeal = 0,
+                           QDateTime dt = QDateTime::currentDateTime());
+    void writeOxygenSaturation(double percentage,QDateTime dt = QDateTime::currentDateTime());
 
 private:
     QString path;

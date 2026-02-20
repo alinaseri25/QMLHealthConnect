@@ -21,14 +21,14 @@ Rectangle {
     property int updateInterval: 10
 
     // ===== Signals =====
-    signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation)
+    signal updateSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation,date startFrom,date endTo)
     signal exportSignal(bool height,bool weight,bool bp,bool bg,bool hr,bool oxygenSaturation)
-    signal setHeight(double value)
-    signal setWeight(double value)
-    signal setBloodPressure(int systolic, int diastolic)
-    signal setHeartRate(double bpm)
-    signal setBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
-    signal setOxygenSaturation(double value)
+    signal setHeight(double value,date dt)
+    signal setWeight(double value,date dt)
+    signal setBloodPressure(int systolic, int diastolic,date dt)
+    signal setHeartRate(double bpm,date dt)
+    signal setBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal,date dt)
+    signal setOxygenSaturation(double value,date dt)
 
     // ✅ یک tooltip سراسری برای کل برنامه
     GenericTooltip {
@@ -158,6 +158,29 @@ Rectangle {
         }
     }
 
+    property date publicSelectedDateTime: new Date()
+    property var _pendingAction: null  // ✅ نگه‌داری موقت action
+
+    DateTimePicker {
+        id: dateTimePicker
+        themeManager: appTheme
+
+        onConfirmed: (selectedDateTime) => {
+            publicSelectedDateTime = selectedDateTime
+
+            // ✅ اجرای action بعد از تأیید کاربر
+            if (_pendingAction) {
+                _pendingAction(selectedDateTime)
+                _pendingAction = null
+            }
+        }
+
+        onCancelled: {
+            publicSelectedDateTime = new Date()
+            _pendingAction = null  // پاکسازی
+        }
+    }
+
     // ===== پنل ورودی =====
     InputPanel {
         id: inputPanel
@@ -168,35 +191,69 @@ Rectangle {
 
         z: 3
 
+        onDateRangePickerRequested: (target, initialDate) => {
+            // تنظیم تاریخ پیش‌فرض datepicker با تاریخ فعلی همان textbox
+            dateTimePicker.selectedYear  = initialDate.getFullYear()
+            dateTimePicker.selectedMonth = initialDate.getMonth() + 1
+            dateTimePicker.selectedDay   = initialDate.getDate()
+            dateTimePicker.selectedHour  = initialDate.getHours()
+            dateTimePicker.selectedMinute = initialDate.getMinutes()
+            dateTimePicker.selectedSecond = initialDate.getSeconds()
+
+            _pendingAction = (dt) => {
+                inputPanel.applySelectedDate(dt)
+            }
+            dateTimePicker.openWithDate(initialDate)
+        }
+
         onHeightSubmitted: (value) => {
-            loadingOverlay.show()
-            mainView.setHeight(value)
-        }
+                // ذخیره action به صورت closure
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setHeight(value, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
 
-        onWeightSubmitted: (value) => {
-            loadingOverlay.show()
-            mainView.setWeight(value)
-        }
+            onWeightSubmitted: (value) => {
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setWeight(value, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
 
-        onBloodPressureSubmitted: (systolic, diastolic) => {
-            loadingOverlay.show()
-            mainView.setBloodPressure(systolic, diastolic)
-        }
+            onHeartRateSubmitted: (bpm) => {
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setHeartRate(bpm, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
 
-        onHeartRateSubmitted: (value) => {
-            loadingOverlay.show()
-            mainView.setHeartRate(value)
-        }
+            onBloodPressureSubmitted: (sys, dia) => {
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setBloodPressure(sys, dia, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
 
-        onBloodGlucoseSubmitted: (glucoseMgDl, specimenSource, mealType, relationToMeal) => {
-            loadingOverlay.show()
-            mainView.setBloodGlucose(glucoseMgDl, specimenSource, mealType, relationToMeal)
-        }
+            onBloodGlucoseSubmitted: (glucose, specimen, meal, relation) => {
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setBloodGlucose(glucose, specimen, meal, relation, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
 
-        onOxygenSaturationSubmitted:(value)=>{
-            loadingOverlay.show()
-            setOxygenSaturation(value)
-        }
+            onOxygenSaturationSubmitted: (value) => {
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setOxygenSaturation(value, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
     }
 
     // ===== دکمه Export =====
@@ -253,7 +310,8 @@ Rectangle {
         repeat: false
         onTriggered: {
             mainView.updateSignal(chartView.heightAxisVisible,chartView.weightAxisVisible,chartView.bpAxisVisible,
-                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible)
+                                  chartView.bloodGlucoseAxisVisible,chartView.heartRateAxisVisible,chartView.oxygenSaturationAxisVisible,
+                                  inputPanel.getFromDate(),inputPanel.getToDate())
         }
     }
     // ===== Timers برای ریست وضعیت =====
@@ -348,6 +406,7 @@ Rectangle {
             } else {
                 inputPanel.heightStatusText = "❌ " + message
                 inputPanel.heightStatusColor = "red"
+                loadingOverlay.hide()
             }
             heightStatusTimer.restart()  // ← در هر دو حالت تایمر استارت میشه
         }
@@ -360,6 +419,7 @@ Rectangle {
             } else {
                 inputPanel.weightStatusText = "❌ " + message
                 inputPanel.weightStatusColor = "red"
+                loadingOverlay.hide()
             }
             weightStatusTimer.restart()
         }
@@ -372,6 +432,7 @@ Rectangle {
             } else {
                 inputPanel.bpStatusText = "❌ " + message
                 inputPanel.bpStatusColor = "red"
+                loadingOverlay.hide()
             }
             bpStatusTimer.restart()
         }
@@ -384,6 +445,7 @@ Rectangle {
             } else {
                 inputPanel.heartRateStatusText = "❌ " + message
                 inputPanel.heartRateStatusColor = "red"
+                loadingOverlay.hide()
             }
             heartRateStatusTimer.restart()
         }
@@ -396,6 +458,7 @@ Rectangle {
             } else {
                 inputPanel.bloodGlucoseStatusText = "❌ " + message
                 inputPanel.bloodGlucoseStatusColor = "red"
+                loadingOverlay.hide()
             }
             bloodGlucoseStatusTimer.restart()
         }
@@ -408,6 +471,7 @@ Rectangle {
             } else {
                 inputPanel.oxygenSaturationStatusText = "❌ " + message
                 inputPanel.oxygenSaturationStatusColor = "red"
+                loadingOverlay.hide()
             }
             oxygenSaturationTimer.restart()
         }
