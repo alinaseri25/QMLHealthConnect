@@ -26,7 +26,7 @@ void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool h
     QString startTime = startFrom.toUTC().toString(Qt::ISODateWithMs); //isoStringMonthsAgo(1);
     QString endTime   = endTo.toUTC().toString(Qt::ISODateWithMs); //QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
 
-    qDebug() << "📅 Time range:" << startTime << "→" << endTime;
+    qDebug() << "📅 Time range:" << startTime << " or " << startFrom.toString("yyyy/MM/dd hh:mm:ss") << " → " << endTime << endTo.toString("yyyy/MM/dd hh:mm:ss");
 
     if(height)
     {

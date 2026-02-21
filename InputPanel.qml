@@ -31,26 +31,26 @@ Rectangle {
     function applySelectedDate(selectedDate) {
         if (_activeDateTarget === "from") {
             fromDateTime = selectedDate
-            fromLabel.text = Qt.formatDateTime(selectedDate, "yyyy/MM/dd  HH:mm")
+            fromLabel.text = Qt.formatDateTime(selectedDate, "yyyy/MM/dd  HH:mm:ss")
         } else {
             toDateTime = selectedDate
-            toLabel.text = Qt.formatDateTime(selectedDate, "yyyy/MM/dd  HH:mm")
+            toLabel.text = Qt.formatDateTime(selectedDate, "yyyy/MM/dd  HH:mm:ss")
         }
     }
 
     function parseDateTime(text) {
-        var regex = /^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})$/
+        var regex = /^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/
         var match = text.match(regex)
         if (!match) return new Date()
         return new Date(parseInt(match[1]), parseInt(match[2])-1,
-                        parseInt(match[3]), parseInt(match[4]), parseInt(match[5]))
+                        parseInt(match[3]), parseInt(match[4]), parseInt(match[5]), parseInt(match[6]))
     }
 
     function formatDate(d) {
         if (!d || !(d instanceof Date) || isNaN(d.getTime())) {
-            return Qt.formatDateTime(new Date(), "yyyy/MM/dd  hh:mm")
+            return Qt.formatDateTime(new Date(), "yyyy/MM/dd  hh:mm:ss")
         }
-        return Qt.formatDateTime(d, "yyyy/MM/dd  hh:mm")
+        return Qt.formatDateTime(d, "yyyy/MM/dd  hh:mm:ss")
     }
 
     function getFromDate() { return parseDateTime(fromLabel.text) }
@@ -93,8 +93,8 @@ Rectangle {
         clip: true
 
         background: Rectangle {
-                color: root.themeManager.cardColor
-            }
+            color: root.themeManager.cardColor
+        }
 
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -139,13 +139,22 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 200 } }
 
                     Row {
-                        anchors.centerIn: parent
                         spacing: 7
 
                         Text {
+                            anchors.centerIn: parent
                             text: "📅"
-                            font.pixelSize: 15
-                            anchors.verticalCenter: parent.verticalCenter
+                            font.pixelSize: 16
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.fromDateTime = new Date()
+                                    fromLabel.text = formatDate(root.fromDateTime)
+                                }
+                            }
                         }
 
                         Text {
@@ -155,17 +164,17 @@ Rectangle {
                             text : formatDate(root.fromDateTime)
                             anchors.verticalCenter: parent.verticalCenter
                             Behavior on color { ColorAnimation { duration: 300 } }
-                        }
-                    }
 
-                    MouseArea {
-                        id: fromHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root._activeDateTarget = "from"
-                            root.dateRangePickerRequested("from", root.fromDateTime)
+                            MouseArea {
+                                id: fromHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root._activeDateTarget = "from"
+                                    root.dateRangePickerRequested("from", root.fromDateTime)
+                                }
+                            }
                         }
                     }
                 }
@@ -192,13 +201,22 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 200 } }
 
                     Row {
-                        anchors.centerIn: parent
                         spacing: 7
 
                         Text {
+                            anchors.centerIn: parent
                             text: "📅"
-                            font.pixelSize: 15
-                            anchors.verticalCenter: parent.verticalCenter
+                            font.pixelSize: 16
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.toDateTime = new Date()
+                                    toLabel.text = formatDate(root.toDateTime)
+                                }
+                            }
                         }
 
                         Text {
@@ -208,19 +226,20 @@ Rectangle {
                             color: root.themeManager.primaryTextColor
                             anchors.verticalCenter: parent.verticalCenter
                             Behavior on color { ColorAnimation { duration: 300 } }
+
+                            MouseArea {
+                                id: toHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root._activeDateTarget = "to"
+                                    root.dateRangePickerRequested("to", root.toDateTime)
+                                }
+                            }
                         }
                     }
 
-                    MouseArea {
-                        id: toHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root._activeDateTarget = "to"
-                            root.dateRangePickerRequested("to", root.toDateTime)
-                        }
-                    }
                 }
             }
 
@@ -713,11 +732,11 @@ Rectangle {
                             let relationMap = [0, 1, 2, 3, 4, 5, 6, 7] // GENERAL=0, FASTING=1, ...
 
                             root.bloodGlucoseSubmitted(
-                                value,
-                                specimenMap[specimenSourceCombo.currentIndex],
-                                mealMap[mealTypeCombo.currentIndex],
-                                relationMap[relationToMealCombo.currentIndex]
-                            )
+                                        value,
+                                        specimenMap[specimenSourceCombo.currentIndex],
+                                        mealMap[mealTypeCombo.currentIndex],
+                                        relationMap[relationToMealCombo.currentIndex]
+                                        )
                         } else {
                             bloodGlucoseStatus.text = "❌ مقدار نامعتبر (1-600)"
                             bloodGlucoseStatus.color = "red"

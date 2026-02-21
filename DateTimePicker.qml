@@ -305,21 +305,59 @@ Popup {
         Item { Layout.fillWidth: true; height: root.height * 0.02 }
 
         // ── پیش‌نمایش ──
-        Rectangle {
+        RowLayout {
+            spacing: root.width * 0.02
             Layout.fillWidth: true
             Layout.leftMargin:  root.width * 0.04
             Layout.rightMargin: root.width * 0.04
-            height: root.height * 0.09
-            radius: 8
-            color: root.themeManager.isDarkMode ? "#FF313244" : "#FFf0f0f0"
-            border.color: root.themeManager.panelBorderColor
-            border.width: 1
-            Text {
-                anchors.centerIn: parent
-                text: Qt.formatDateTime(root.toDateTime(), "yyyy/MM/dd   hh:mm:ss")
-                color: root.themeManager.accentColor
-                font.pixelSize: Math.max(12, root.width * 0.042)
-                font.bold: true
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: root.height * 0.09
+                radius: 8
+                color: root.themeManager.isDarkMode ? "#FF313244" : "#FFf0f0f0"
+                border.color: root.themeManager.panelBorderColor
+                border.width: 1
+                Text {
+                    anchors.centerIn: parent
+                    text: Qt.formatDateTime(root.toDateTime(), "yyyy/MM/dd   hh:mm:ss")
+                    color: root.themeManager.accentColor
+                    font.pixelSize: Math.max(12, root.width * 0.042)
+                    font.bold: true
+                }
+            }
+
+            // دکمه برو به زمان حال داخل DateTimePicker
+            Item {
+                id: pickerNowBtnWrapper
+                width: root.width * 0.12
+                height: root.height * 0.09
+
+                Rectangle {
+                    id: pickerNowBtn
+                    anchors.fill: parent
+                    radius: 8
+                    color: pickerNowMa.pressed
+                        ? root.themeManager.accentPressed
+                        : (pickerNowMa.containsMouse ? root.themeManager.accentColor : "transparent")
+                    border.color: root.themeManager.inputBorderColor
+                    border.width: 1
+
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "📅"
+                        font.pixelSize: Math.max(14, root.width * 0.048)
+                    }
+
+                    MouseArea {
+                        id: pickerNowMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.resetToNow()
+                    }
+                }
             }
         }
 

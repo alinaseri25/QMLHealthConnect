@@ -35,6 +35,7 @@ Rectangle {
         id: globalTooltip
         z: 10000
         parent: mainView  // مهم: parent باید root باشه
+        themeManager: appTheme
     }
 
     // ===== نمودار اصلی =====

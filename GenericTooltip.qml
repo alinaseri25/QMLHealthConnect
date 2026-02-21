@@ -5,23 +5,34 @@ import Qt5Compat.GraphicalEffects
 Rectangle {
     id: tooltip
 
+    // ── themeManager ──
+    property var themeManager: null
+
     // ✅ دو حالت: تک‌خطی یا دو‌خطی
-    property string text: ""                    // حالت ساده
-    property string labelText: ""               // خط اول (برای نمودار)
-    property string valueText: ""               // خط دوم (برای نمودار)
+    property string text: ""
+    property string labelText: ""
+    property string valueText: ""
     property bool isMultiLine: labelText.length > 0 && valueText.length > 0
 
-    // ✅ تنظیمات ظاهری
-    property color backgroundColor: Qt.rgba(0, 0, 0, 0.85)
-    property color borderColor: Qt.rgba(255, 255, 255, 0.3)
+    // ✅ تنظیمات ظاهری — binding به themeManager
+    property color backgroundColor: themeManager
+        ? (themeManager.isDarkMode ? Qt.rgba(0.08, 0.08, 0.12, 0.93) : Qt.rgba(0.12, 0.12, 0.18, 0.90))
+        : Qt.rgba(0, 0, 0, 0.85)
+
+    property color borderColor: themeManager
+        ? (themeManager.isDarkMode ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.38))
+        : Qt.rgba(255, 255, 255, 0.3)
+
     property color textColor: "white"
-    property color valueColor: "#4FC3F7"
+
+    property color valueColor: themeManager ? themeManager.accentColor : "#4FC3F7"
+
     property int textSize: 12
     property int valueSize: 14
 
     // ✅ رفتار
-    property int autoHideDelay: 0               // 0 = غیرفعال
-    property bool followMouse: false            // آیا ماوس را دنبال کند؟
+    property int autoHideDelay: 0
+    property bool followMouse: false
 
     visible: opacity > 0
     opacity: 0
@@ -33,9 +44,8 @@ Rectangle {
     radius: 8
     border.color: borderColor
     border.width: 1
-    z: 10000  // ✅ همیشه بالاترین لایه
+    z: 10000
 
-    // سایه
     layer.enabled: true
     layer.effect: DropShadow {
         horizontalOffset: 0
@@ -139,7 +149,6 @@ Rectangle {
         let finalX = globalPos.x
         let finalY = globalPos.y
 
-        // ✅ موقعیت‌یابی خودکار
         switch(position) {
         case "top":
             finalX = globalPos.x + targetItem.width/2 - tooltip.width/2
@@ -159,20 +168,16 @@ Rectangle {
             break
         case "auto":
         default:
-            // محاسبه فضای موجود
             let spaceRight = tooltip.parent.width - (globalPos.x + targetItem.width)
             let spaceBottom = tooltip.parent.height - (globalPos.y + targetItem.height)
 
             if (spaceRight >= tooltip.width + 20) {
-                // راست
                 finalX = globalPos.x + targetItem.width + 10
                 finalY = globalPos.y + targetItem.height/2 - tooltip.height/2
             } else if (spaceBottom >= tooltip.height + 20) {
-                // پایین
                 finalX = globalPos.x + targetItem.width/2 - tooltip.width/2
                 finalY = globalPos.y + targetItem.height + 10
             } else {
-                // بالا
                 finalX = globalPos.x + targetItem.width/2 - tooltip.width/2
                 finalY = globalPos.y - tooltip.height - 10
             }
@@ -188,7 +193,6 @@ Rectangle {
         tooltip.x = x
         tooltip.y = y
 
-        // جلوگیری از خروج از صفحه
         if (tooltip.parent) {
             if (tooltip.x < 0) tooltip.x = 10
             if (tooltip.y < 0) tooltip.y = 10
