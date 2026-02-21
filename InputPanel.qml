@@ -139,12 +139,13 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 200 } }
 
                     Row {
+                        anchors.centerIn: parent   // ✅ Row وسط Rectangle قرار می‌گیره
                         spacing: 7
 
                         Text {
-                            anchors.centerIn: parent
                             text: "📅"
                             font.pixelSize: 16
+                            verticalAlignment: Text.AlignVCenter
 
                             MouseArea {
                                 anchors.fill: parent
@@ -162,8 +163,8 @@ Rectangle {
                             font.pixelSize: 13
                             color: root.themeManager.primaryTextColor
                             text : formatDate(root.fromDateTime)
-                            anchors.verticalCenter: parent.verticalCenter
                             Behavior on color { ColorAnimation { duration: 300 } }
+                            verticalAlignment: Text.AlignVCenter
 
                             MouseArea {
                                 id: fromHover
@@ -201,12 +202,13 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 200 } }
 
                     Row {
+                        anchors.centerIn: parent   // ✅ Row وسط Rectangle قرار می‌گیره
                         spacing: 7
 
                         Text {
-                            anchors.centerIn: parent
                             text: "📅"
                             font.pixelSize: 16
+                            verticalAlignment: Text.AlignVCenter
 
                             MouseArea {
                                 anchors.fill: parent
@@ -224,8 +226,8 @@ Rectangle {
                             font.pixelSize: 13
                             text: formatDate(root.toDateTime)
                             color: root.themeManager.primaryTextColor
-                            anchors.verticalCenter: parent.verticalCenter
                             Behavior on color { ColorAnimation { duration: 300 } }
+                            verticalAlignment: Text.AlignVCenter
 
                             MouseArea {
                                 id: toHover
