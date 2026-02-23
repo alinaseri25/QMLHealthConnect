@@ -5,6 +5,11 @@ Backend::Backend(QObject *parent)
 {
     loadAvailablePath();
     checkPermissions();
+
+    loadPeriodState();
+    // periodActive = !periodActive;
+    // currentPeriodStart = QDateTime::currentDateTime();
+    // savePeriodState();
 }
 
 void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool hr, bool spo2, QDateTime startFrom, QDateTime endTo)
@@ -52,6 +57,8 @@ void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool h
     {
         readOxygenSaturation(startTime, endTime);
     }
+
+    readMenstruationData(startTime,endTime);
 
     emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList, oxygenSaturationList);
 #else
@@ -444,6 +451,222 @@ void Backend::writeOxygenSaturation(double percentage, QDateTime dt)
 #endif
 }
 
+void Backend::writeMenstruationFlow(int flowLevel, QDateTime dt)
+{
+    // اعتبارسنجی
+    if (flowLevel < 1 || flowLevel > 3) {
+        qDebug() << "❌ Invalid flow level:" << flowLevel;
+        emit menstruationFlowWritten(false,
+                                     QString("سطح خونریزی نامعتبر است: %1 (باید ۱ تا ۳ باشد)").arg(flowLevel));
+        return;
+    }
+
+    // اگه اولین ثبت این دوره‌ست → startTime رو ذخیره کن
+    if (!periodActive) {
+        periodActive       = true;
+        currentPeriodStart = dt;
+        savePeriodState();
+        qDebug() << "🩸 Period started at:" << dt.toString("yyyy/MM/dd");
+    }
+
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) {
+        emit menstruationFlowWritten(false, "Activity is invalid");
+        return;
+    }
+
+    QString timeIso = dt.toUTC().toString(Qt::ISODateWithMs);
+    QJniObject jTime = QJniObject::fromString(timeIso);
+
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeMenstruationFlow",
+        "(ILjava/lang/String;)Ljava/lang/String;",
+        (jint)flowLevel,
+        jTime.object<jstring>()
+        );
+
+    QString status = result.toString();
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if (success) {
+        static const QStringList levelNames = {"", "سبک", "متوسط", "سنگین"};
+        status = QString("شدت %1 برای %2 ثبت شد")
+                     .arg(levelNames.value(flowLevel))
+                     .arg(dt.toString("yyyy/MM/dd hh:mm:ss"));
+    }
+
+    emit menstruationFlowWritten(success, status);
+
+#else
+    qDebug() << "Not Android - MenstruationFlow write skipped. Level:" << flowLevel;
+    emit menstruationFlowWritten(true,
+                                 QString("(Desktop) شدت %1 برای %2 ثبت شد")
+                                     .arg(flowLevel)
+                                     .arg(dt.toString("yyyy/MM/dd")));
+#endif
+}
+
+void Backend::writeMenstruationPeriod(QDateTime endTime)
+{
+    // بررسی اینکه آیا دوره فعالی هست
+    if (!periodActive || !currentPeriodStart.isValid()) {
+        emit menstruationPeriodWritten(false,
+                                       "هیچ دوره فعالی برای پایان دادن وجود ندارد");
+        return;
+    }
+
+    // اعتبارسنجی بازه
+    if (endTime < currentPeriodStart) {
+        emit menstruationPeriodWritten(false,
+                                       "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد");
+        return;
+    }
+
+    qint64 durationDays = currentPeriodStart.daysTo(endTime);
+    if (durationDays > 15) {
+        emit menstruationPeriodWritten(false,
+                                       QString("طول دوره نامعتبر است: %1 روز (حداکثر ۱۵ روز)").arg(durationDays));
+        return;
+    }
+
+#ifdef Q_OS_ANDROID
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) {
+        emit menstruationPeriodWritten(false, "Activity is invalid");
+        return;
+    }
+
+    QString startIso = currentPeriodStart.toUTC().toString(Qt::ISODateWithMs);
+    QString endIso   = endTime.toUTC().toString(Qt::ISODateWithMs);
+
+    QJniObject jStart = QJniObject::fromString(startIso);
+    QJniObject jEnd   = QJniObject::fromString(endIso);
+
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "writeMenstruationPeriod",
+        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        jStart.object<jstring>(),
+        jEnd.object<jstring>()
+        );
+
+    QString status = result.toString();
+    bool success = !status.contains("ERROR") && !status.contains("NULL");
+
+    if (success) {
+        // ── پاک‌سازی state ──────────────────────────────────
+        periodActive = false;
+        currentPeriodStart = QDateTime();
+        savePeriodState();
+        emit periodStateChanged();
+
+        status = QString("دوره از %1 تا %2 (%3 روز) ثبت شد")
+                     .arg(currentPeriodStart.toString("yyyy/MM/dd"))
+                     .arg(endTime.toString("yyyy/MM/dd"))
+                     .arg(durationDays + 1);
+    }
+
+    emit menstruationPeriodWritten(success, status);
+
+#else
+    QString startStr = currentPeriodStart.toString("yyyy/MM/dd");
+    periodActive = false;
+    currentPeriodStart = QDateTime();
+    savePeriodState();
+    emit periodStateChanged();
+
+    qDebug() << "Not Android - MenstruationPeriod write skipped."
+             << "Start:" << startStr
+             << "End:"   << endTime.toString("yyyy/MM/dd");
+
+    emit menstruationPeriodWritten(true,
+                                   QString("(Desktop) دوره از %1 تا %2 (%3 روز) شبیه‌سازی شد")
+                                       .arg(startStr)
+                                       .arg(endTime.toString("yyyy/MM/dd"))
+                                       .arg(durationDays + 1));
+#endif
+}
+
+void Backend::readMenstruationData(QString startFrom, QString endTo)
+{
+    periodList.clear();
+    periodFlowList.clear();
+
+#ifdef Q_OS_ANDROID
+    QJniObject jStart = QJniObject::fromString(startFrom);
+    QJniObject jEnd   = QJniObject::fromString(endTo);
+
+    QJniObject result = QJniObject::callStaticObjectMethod(
+        "org/verya/QMLHealthConnect/HealthBridge",
+        "readMenstruationData",
+        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        jStart.object<jstring>(),
+        jEnd.object<jstring>()
+        );
+
+    QString jsonStr = result.toString();
+
+    if (jsonStr.startsWith("ERROR") ||
+        jsonStr == "CLIENT_NULL"    ||
+        jsonStr == "NO_MENSTRUATION_DATA") {
+        qDebug() << "⚠️ readMenstruationData:" << jsonStr;
+        emit menstruationDataRead(periodList, periodFlowList);
+        return;
+    }
+
+    // ── پارس JSON ────────────────────────────────────────────
+    // فرمت: {"periods":[{"start":"...","end":"..."},...],
+    //         "flows":[{"time":"...","level":2},...]}
+    QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+    if (!doc.isObject()) {
+        qDebug() << "❌ readMenstruationData: invalid JSON";
+        emit menstruationDataRead(periodList, periodFlowList);
+        return;
+    }
+
+    QJsonObject root = doc.object();
+
+    // periods
+    QJsonArray periods = root["periods"].toArray();
+    for (const QJsonValue &v : periods) {
+        QJsonObject obj = v.toObject();
+        MenstruationPeriod p;
+        p.start = QDateTime::fromString(obj["start"].toString(), Qt::ISODate);
+        p.end   = QDateTime::fromString(obj["end"].toString(),   Qt::ISODate);
+        if (p.start.isValid() && p.end.isValid()) {
+            periodList.append(p);
+        }
+    }
+
+    // flows
+    QJsonArray flows = root["flows"].toArray();
+    for (const QJsonValue &v : flows) {
+        QJsonObject obj = v.toObject();
+        MenstruationFlow f;
+        f.time  = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+        f.level = obj["level"].toInt(0);
+        if (f.time.isValid()) {
+            periodFlowList.append(f);
+        }
+    }
+
+    qDebug() << "✅ Menstruation read:"
+             << periodList.size() << "periods,"
+             << periodFlowList.size()   << "flows";
+
+    emit menstruationDataRead(periodList, periodFlowList);
+#else
+    qDebug() << "Not Android - readMenstruationData skipped";
+#endif
+}
+
+void Backend::exportMenstruationData(QXlsx::Document *xlsx)
+{
+
+}
+
 bool Backend::copyToDownloads(const QString &srcPath, const QString &fileName)
 {
 #ifdef Q_OS_ANDROID
@@ -635,35 +858,80 @@ void Backend::permissionRequest()
 bool Backend::checkPermissions()
 {
 #ifdef Q_OS_ANDROID
-    QJniObject context = QNativeInterface::QAndroidApplication::context();
-    if (!context.isValid()) {
-        qDebug() << "❌ Context invalid";
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) {
+        //emit permissionsChecked(false, "Activity is invalid");
         return false;
     }
 
-    // ✅ Step 1: Check permissions
-    QJniObject permResult = QJniObject::callStaticObjectMethod(
+    QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "checkPermissions",
         "()Ljava/lang/String;"
         );
 
-    QString permStatus = permResult.toString();
-    qDebug() << "🔐" << permStatus;
+    QString jsonStr = result.toString();
 
-    // ✅ Step 2: If not granted → request & EXIT
-    if (!permStatus.contains("ALL_GRANTED (10/10)"))
-    {
-        qDebug() << "⚠️ Requesting permissions...";
-        permissionRequest();
-        qDebug() << "💡 Grant permissions and press Read again";
+    // ── پارس JSON جدید ──────────────────────────────────────────
+    QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+
+    if (doc.isNull() || !doc.isObject()) {
+        // fallback — اگه JSON پارس نشد
+        qDebug() << "⚠️ checkPermissions: invalid JSON:" << jsonStr;
+        //emit permissionsChecked(false, jsonStr);
         return false;
     }
 
-    return true;
+    QJsonObject obj = doc.object();
+
+    // ── بررسی خطا ───────────────────────────────────────────────
+    if (obj.contains("error")) {
+        QString errMsg = obj["error"].toString();
+        qDebug() << "❌ checkPermissions error:" << errMsg;
+        //emit permissionsChecked(false, errMsg);
+        return false;
+    }
+
+    // ── خواندن وضعیت کلی ────────────────────────────────────────
+    bool allGranted   = obj["allGranted"].toBool(false);
+    int  grantedCount = obj["grantedCount"].toInt(0);
+    int  totalCount   = obj["totalCount"].toInt(0);
+
+    // ── لاگ جزئیات هر permission ────────────────────────────────
+    QJsonArray perms = obj["permissions"].toArray();
+    QStringList missing;
+
+    for (const QJsonValue &val : perms) {
+        QJsonObject p    = val.toObject();
+        QString name     = p["name"].toString();
+        bool    isGranted = p["granted"].toBool(false);
+
+        if (!isGranted) {
+            missing.append(name);
+        }
+        qDebug() << (isGranted ? "✅" : "❌") << name;
+    }
+
+    if (!missing.isEmpty()) {
+        qDebug() << "⚠️ Missing permissions:" << missing.join(", ");
+    }
+
+    QString statusMsg = allGranted
+                            ? QString("همه دسترسی‌ها فعال هستند (%1/%2)")
+                                  .arg(grantedCount).arg(totalCount)
+                            : QString("برخی دسترسی‌ها موجود نیستند (%1/%2): %3")
+                                  .arg(grantedCount).arg(totalCount)
+                                  .arg(missing.join("، "));
+
+    qDebug() << "🔐 Permissions:" << statusMsg;
+
+    // ── ارسال JSON کامل به QML از طریق سیگنال ───────────────────
+    emit permissionsState(allGranted, statusMsg);  // ← JSON کامل
+
 #else
     qDebug() << "Not Android";
 #endif
+    return true;
 }
 
 void Backend::readHeight(QString startTime,QString endTime)
@@ -1063,4 +1331,34 @@ QString Backend::isoStringMonthsAgo(int months)
     QDateTime past = now.addMonths(-months);
     // فرمت ISO8601 که Kotlin می‌فهمد
     return past.toString(Qt::ISODateWithMs);
+}
+
+void Backend::savePeriodState()
+{
+    QSettings settings;
+    settings.setValue("menstruation/periodActive",
+                      periodActive);
+    settings.setValue("menstruation/periodStart",
+                      currentPeriodStart.toMSecsSinceEpoch());
+    settings.sync();
+    qDebug() << "💾 Period state saved:"
+             << "active=" << periodActive
+             << "start=" << currentPeriodStart.toString("yyyy/MM/dd hh:mm:ss");
+}
+
+void Backend::loadPeriodState()
+{
+    QSettings settings;
+    periodActive = settings.value("menstruation/periodActive", false).toBool();
+
+    qint64 msec = settings.value("menstruation/periodStart", 0LL).toLongLong();
+    if (msec > 0) {
+        currentPeriodStart = QDateTime::fromMSecsSinceEpoch(msec);
+    }
+
+    qDebug() << "📂 Period state loaded:"
+             << "active=" << periodActive
+             << "start=" << currentPeriodStart.toString("yyyy/MM/dd hh:mm:ss");
+
+    emit periodStateChanged();
 }

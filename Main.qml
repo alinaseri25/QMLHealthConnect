@@ -393,6 +393,12 @@ Rectangle {
     Connections {
         target: myBackend
 
+        function onPermissionsState(success, message)
+        {
+            console.log(message)
+            exportToast.showMessage(success, message)
+        }
+
         function onExportCompleted(success, message)
         {
             console.log(message)
@@ -475,6 +481,14 @@ Rectangle {
                 loadingOverlay.hide()
             }
             oxygenSaturationTimer.restart()
+        }
+
+        function onMenstruationPeriodWritten(success, message)
+        {
+        }
+
+        function onMenstruationFlowWritten(success, message)
+        {
         }
 
         function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList, oxygenSaturationList) {

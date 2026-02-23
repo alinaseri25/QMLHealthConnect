@@ -12,6 +12,7 @@
 #include <QJsonArray>
 #include <QThread>
 #include <QDir>
+#include <QSettings>
 #include "xlsxdocument.h"
 #include "xlsxformat.h"
 #include "xlsxworksheet.h"
@@ -23,6 +24,18 @@
 #include <QtCore/qnativeinterface.h>
 #include <QJniEnvironment>
 #endif
+
+// ── ساختار داده دوره قاعدگی ──────────────────────────────────
+struct MenstruationPeriod {
+    QDateTime start;
+    QDateTime end;
+};
+
+struct MenstruationFlow {
+    QDateTime time;
+    int       level;   // 0=UNKNOWN, 1=LIGHT, 2=MEDIUM, 3=HEAVY
+};
+// ─────────────────────────────────────────────────────────────
 
 class Backend : public QObject
 {
@@ -42,6 +55,12 @@ public slots:
                            int mealType = 0, int relationToMeal = 0,
                            QDateTime dt = QDateTime::currentDateTime());
     void writeOxygenSaturation(double percentage,QDateTime dt = QDateTime::currentDateTime());
+    // ── جدید: قاعدگی ─────────────────────────────────────────
+    // flowLevel: 1=سبک, 2=متوسط, 3=سنگین
+    void writeMenstruationFlow(int flowLevel,
+                               QDateTime dt = QDateTime::currentDateTime());
+    // فقط در پایان دوره صدا زده می‌شه — startTime از QSettings خوانده می‌شه
+    void writeMenstruationPeriod(QDateTime endTime = QDateTime::currentDateTime());
 
 private:
     QString path;
@@ -58,6 +77,11 @@ private:
     QJsonDocument bloodGlucoseJsonDoc;
     QList<QPointF> oxygenSaturationList;
     QJsonDocument oxygenSaturationJsonDoc;
+    QList<MenstruationPeriod> periodList;
+    QList<MenstruationFlow>   periodFlowList;
+    QJsonDocument periodJsonDoc;
+    bool      periodActive = false;
+    QDateTime currentPeriodStart;
 
     bool copyToDownloads(const QString &srcPath, const QString &fileName);
     void loadAvailablePath(void);
@@ -75,9 +99,15 @@ private:
     void exportBG(QXlsx::Document *xlsx);
     void readOxygenSaturation(QString startTime, QString endTime);
     void exportOxygenSaturation(QXlsx::Document *xlsx);
+    void readMenstruationData(QString startFrom, QString endTo);
+    void exportMenstruationData(QXlsx::Document *xlsx);
+
     static QString isoStringMonthsAgo(int months);
+    void savePeriodState();
+    void loadPeriodState();
 
 signals:
+    void permissionsState(bool success,QString message);
     void newDataRead(QList<QPointF> hList,
                      QList<QPointF> wList,
                      QList<QPointF> bpSystolicList, QList<QPointF> bpDiastolicList,
@@ -91,6 +121,11 @@ signals:
     void heartRateWritten(bool success, QString message);
     void bloodGlucoseWritten(bool success, QString message);
     void oxygenSaturationWritten(bool success, QString message);
+    void menstruationFlowWritten(bool success, QString message);
+    void menstruationPeriodWritten(bool success, QString message);
+    void menstruationDataRead(QList<MenstruationPeriod> periods,
+                              QList<MenstruationFlow>   flows);
+    void periodStateChanged();
 };
 
 #endif // BACKEND_H

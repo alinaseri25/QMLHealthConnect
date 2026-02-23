@@ -17,6 +17,8 @@ import androidx.health.connect.client.records.BloodPressureRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.BloodGlucoseRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
+import androidx.health.connect.client.records.MenstruationFlowRecord
+import androidx.health.connect.client.records.MenstruationPeriodRecord
 
 import androidx.health.connect.client.response.ReadRecordsResponse
 
@@ -52,6 +54,41 @@ object HealthBridge {
 
     private val readMutex = Mutex()
 
+    // ══════════════════════════════════════════════════════════════
+    // منبع واحد حقیقت برای مجوزها
+    // هر entry: Pair(permissionString, nameForJson)
+    // ══════════════════════════════════════════════════════════════
+    private val PERMISSION_META = listOf(
+        Pair(HealthPermission.getReadPermission(HeightRecord::class),              "readHeight"),
+        Pair(HealthPermission.getWritePermission(HeightRecord::class),             "writeHeight"),
+        Pair(HealthPermission.getReadPermission(WeightRecord::class),              "readWeight"),
+        Pair(HealthPermission.getWritePermission(WeightRecord::class),             "writeWeight"),
+        Pair(HealthPermission.getReadPermission(BloodPressureRecord::class),       "readBloodPressure"),
+        Pair(HealthPermission.getWritePermission(BloodPressureRecord::class),      "writeBloodPressure"),
+        Pair(HealthPermission.getReadPermission(HeartRateRecord::class),           "readHeartRate"),
+        Pair(HealthPermission.getWritePermission(HeartRateRecord::class),          "writeHeartRate"),
+        Pair(HealthPermission.getReadPermission(BloodGlucoseRecord::class),        "readBloodGlucose"),
+        Pair(HealthPermission.getWritePermission(BloodGlucoseRecord::class),       "writeBloodGlucose"),
+        Pair(HealthPermission.getReadPermission(OxygenSaturationRecord::class),    "readOxygenSaturation"),
+        Pair(HealthPermission.getWritePermission(OxygenSaturationRecord::class),   "writeOxygenSaturation"),
+        Pair(HealthPermission.getReadPermission(MenstruationPeriodRecord::class),  "readMenstruationPeriod"),
+        Pair(HealthPermission.getWritePermission(MenstruationPeriodRecord::class), "writeMenstruationPeriod"),
+        Pair(HealthPermission.getReadPermission(MenstruationFlowRecord::class),    "readMenstruationFlow"),
+        Pair(HealthPermission.getWritePermission(MenstruationFlowRecord::class),   "writeMenstruationFlow")
+    )
+
+    // مشتق‌شده از PERMISSION_META — همیشه هماهنگ
+    val PERMISSIONS: Set<String> = PERMISSION_META.map { it.first }.toSet()
+
+    private var appContext: Context? = null
+    private var healthConnectClient: HealthConnectClient? = null
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    var permissionCallback: ((Boolean) -> Unit)? = null
+
+    // ─────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────
     private suspend fun <T : Record> safeReadBlocking(
         client: HealthConnectClient,
         request: ReadRecordsRequest<T>,
@@ -100,27 +137,6 @@ object HealthBridge {
             null
         }
     }
-
-    private var appContext: Context? = null
-    private var healthConnectClient: HealthConnectClient? = null
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-
-    var permissionCallback: ((Boolean) -> Unit)? = null
-
-    val PERMISSIONS = setOf(
-        HealthPermission.getReadPermission(HeightRecord::class),
-        HealthPermission.getWritePermission(HeightRecord::class),
-        HealthPermission.getReadPermission(WeightRecord::class),
-        HealthPermission.getWritePermission(WeightRecord::class),
-        HealthPermission.getReadPermission(BloodPressureRecord::class),
-        HealthPermission.getWritePermission(BloodPressureRecord::class),
-        HealthPermission.getReadPermission(HeartRateRecord::class),
-        HealthPermission.getWritePermission(HeartRateRecord::class),
-        HealthPermission.getReadPermission(BloodGlucoseRecord::class),
-        HealthPermission.getWritePermission(BloodGlucoseRecord::class),
-        HealthPermission.getReadPermission(OxygenSaturationRecord::class),
-        HealthPermission.getWritePermission(OxygenSaturationRecord::class)
-    )
 
     @JvmStatic
     fun isHealthConnectInstalled(): Boolean {
@@ -180,22 +196,48 @@ object HealthBridge {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // PERMISSIONS — checkPermissions: خروجی JSON برای C++
+    // ─────────────────────────────────────────────────────────────
     @JvmStatic
     fun checkPermissions(): String {
-        val client = healthConnectClient ?: return "CLIENT_NULL"
+        val client = healthConnectClient ?: return """{"error":"CLIENT_NULL","allGranted":false}"""
         return try {
             val granted = runBlocking(Dispatchers.IO) {
                 client.permissionController.getGrantedPermissions()
             }
-            val grantedCount = granted.intersect(PERMISSIONS).size
-            if (grantedCount == PERMISSIONS.size) "ALL_GRANTED ($grantedCount/${PERMISSIONS.size})"
-            else "PARTIAL ($grantedCount/${PERMISSIONS.size})"
+
+            val permArray    = JSONArray()
+            var grantedCount = 0
+
+            PERMISSION_META.forEach { (permString, name) ->
+                val isGranted = granted.contains(permString)
+                if (isGranted) grantedCount++
+                permArray.put(JSONObject().apply {
+                    put("name",    name)
+                    put("granted", isGranted)
+                })
+            }
+
+            JSONObject().apply {
+                put("allGranted",   grantedCount == PERMISSION_META.size)
+                put("grantedCount", grantedCount)
+                put("totalCount",   PERMISSION_META.size)
+                put("permissions",  permArray)
+            }.toString()
+
         } catch (e: Exception) {
             Log.e(TAG, "❌ checkPermissions failed", e)
-            "ERROR: ${e.message}"
+            JSONObject().apply {
+                put("error",      e.message ?: "UNKNOWN_ERROR")
+                put("allGranted", false)
+            }.toString()
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // PERMISSIONS — requestPermissions
+    // ─────────────────────────────────────────────────────────────
     @JvmStatic
     fun requestPermissions(activity: Activity): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
@@ -829,6 +871,224 @@ object HealthBridge {
             "ERROR: ${e.message}"
         }
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // WRITE MENSTRUATION PERIOD
+    // ثبت بازه کامل دوره قاعدگی (startTime تا endTime)
+    // ─────────────────────────────────────────────────────────────
+    @JvmStatic
+    fun writeMenstruationPeriod(
+        startTimeIso: String,
+        endTimeIso: String
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            val startInstant = Instant.parse(startTimeIso)
+            val endInstant   = Instant.parse(endTimeIso)
+
+            if (!endInstant.isAfter(startInstant)) {
+                return "ERROR: endTime must be after startTime"
+            }
+
+            // حداکثر طول منطقی دوره: 15 روز
+            val diffDays = ChronoUnit.DAYS.between(startInstant, endInstant)
+            if (diffDays > 15) {
+                return "ERROR: Period duration too long ($diffDays days). Max is 15 days."
+            }
+
+            val startZoneOffset = ZoneId.systemDefault().rules.getOffset(startInstant)
+            val endZoneOffset   = ZoneId.systemDefault().rules.getOffset(endInstant)
+
+            val record = MenstruationPeriodRecord(
+                startTime       = startInstant,
+                startZoneOffset = startZoneOffset,
+                endTime         = endInstant,
+                endZoneOffset   = endZoneOffset
+            )
+
+            runBlocking(Dispatchers.IO) {
+                client.insertRecords(listOf(record))
+            }
+
+            "SUCCESS: Menstruation period saved from $startInstant to $endInstant"
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error writing menstruation period", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error writing menstruation period", e)
+            "ERROR: ${e.message}"
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // WRITE MENSTRUATION FLOW
+    // ثبت شدت خونریزی در یک لحظه مشخص
+    // flowLevel: 0=UNKNOWN, 1=LIGHT, 2=MEDIUM, 3=HEAVY
+    // ─────────────────────────────────────────────────────────────
+    @JvmStatic
+    fun writeMenstruationFlow(
+        timeIso: String,
+        flowLevel: Int
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            // اعتبارسنجی flowLevel — دقیقاً مثل validation های بقیه توابع
+            if (flowLevel < 0 || flowLevel > 3) {
+                return "ERROR: Invalid flowLevel ($flowLevel). Must be 0-3 " +
+                       "(0=UNKNOWN, 1=LIGHT, 2=MEDIUM, 3=HEAVY)"
+            }
+
+            val instant    = Instant.parse(timeIso)
+            val zoneOffset = ZoneId.systemDefault().rules.getOffset(instant)
+
+            val flow = when (flowLevel) {
+                1    -> MenstruationFlowRecord.FLOW_LIGHT
+                2    -> MenstruationFlowRecord.FLOW_MEDIUM
+                3    -> MenstruationFlowRecord.FLOW_HEAVY
+                else -> MenstruationFlowRecord.FLOW_UNKNOWN
+            }
+
+            val record = MenstruationFlowRecord(
+                time       = instant,
+                zoneOffset = zoneOffset,
+                flow       = flow
+            )
+
+            runBlocking(Dispatchers.IO) {
+                client.insertRecords(listOf(record))
+            }
+
+            "SUCCESS: Menstruation flow level $flowLevel saved at $instant"
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error writing menstruation flow", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error writing menstruation flow", e)
+            "ERROR: ${e.message}"
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // READ MENSTRUATION DATA — با pagination، هم‌سبک با readHeartRate
+    // خروجی JSON ترکیبی از periods و flows:
+    // {
+    //   "periods": [ { "start": "...", "end": "..." }, ... ],
+    //   "flows":   [ { "time": "...", "flow": 2 }, ... ]
+    // }
+    // ─────────────────────────────────────────────────────────────
+    @JvmStatic
+    fun readMenstruationData(
+        startTime: String? = null,
+        endTime:   String? = null
+    ): String {
+        val client = healthConnectClient ?: return "CLIENT_NULL"
+        return try {
+            // ── خواندن Periods ──────────────────────────────────
+            val periodsArray = JSONArray()
+            var pageToken: String? = null
+            var pageCount = 0
+
+            do {
+                val request = ReadRecordsRequest(
+                    recordType      = MenstruationPeriodRecord::class,
+                    timeRangeFilter = createTimeFilter(startTime, endTime),
+                    ascendingOrder  = true,
+                    pageSize        = 1000,
+                    pageToken       = pageToken
+                )
+                val response = runBlocking(Dispatchers.IO) {
+                    safeReadBlocking(client, request)
+                }
+
+                response.records.forEach { record ->
+                    periodsArray.put(JSONObject().apply {
+                        put("start", record.startTime.toString())
+                        put("end",   record.endTime.toString())
+                    })
+                }
+
+                val newToken = response.pageToken
+                pageCount++
+
+                if (newToken == pageToken && newToken != null) {
+                    Log.w(TAG, "⚠️ MenstruationPeriod: pageToken unchanged — SDK bug. Stopping.")
+                    break
+                }
+                pageToken = newToken
+
+            } while (pageToken != null && pageCount < MAX_PAGES)
+
+            // ── خواندن Flows ─────────────────────────────────────
+            // از sortedMap استفاده می‌کنیم — هم‌سبک با readHeartRate و readOxygenSaturation
+            val flowMap = sortedMapOf<Instant, Int>()
+            pageToken = null
+            pageCount = 0
+
+            do {
+                val request = ReadRecordsRequest(
+                    recordType      = MenstruationFlowRecord::class,
+                    timeRangeFilter = createTimeFilter(startTime, endTime),
+                    ascendingOrder  = true,
+                    pageSize        = 1000,
+                    pageToken       = pageToken
+                )
+                val response = runBlocking(Dispatchers.IO) {
+                    safeReadBlocking(client, request)
+                }
+
+                response.records.forEach { record ->
+                    // تبدیل enum به Int — سازگار با C++ و QML
+                    val flowInt = when (record.flow) {
+                        MenstruationFlowRecord.FLOW_LIGHT   -> 1
+                        MenstruationFlowRecord.FLOW_MEDIUM  -> 2
+                        MenstruationFlowRecord.FLOW_HEAVY   -> 3
+                        else                                -> 0
+                    }
+                    flowMap[record.time] = flowInt
+                }
+
+                val newToken = response.pageToken
+                pageCount++
+
+                if (newToken == pageToken && newToken != null) {
+                    Log.w(TAG, "⚠️ MenstruationFlow: pageToken unchanged — SDK bug. Stopping.")
+                    break
+                }
+                pageToken = newToken
+
+            } while (pageToken != null && pageCount < MAX_PAGES)
+
+            // ── اگه هیچ داده‌ای نبود ────────────────────────────
+            if (periodsArray.length() == 0 && flowMap.isEmpty()) {
+                return "NO_MENSTRUATION_DATA"
+            }
+
+            // ── ساخت flowsArray از flowMap ───────────────────────
+            val flowsArray = JSONArray()
+            flowMap.forEach { (time, flowInt) ->
+                flowsArray.put(JSONObject().apply {
+                    put("time", time.toString())
+                    put("flow", flowInt)
+                })
+            }
+
+            // ── خروجی نهایی ─────────────────────────────────────
+            JSONObject().apply {
+                put("periods", periodsArray)
+                put("flows",   flowsArray)
+            }.toString()
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security error reading menstruation data", e)
+            "SECURITY_ERROR"
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error reading menstruation data", e)
+            "ERROR: ${e.message}"
+        }
+    }
+
 
     @JvmStatic
     fun openHealthConnectInStore(activity: Activity): String {
