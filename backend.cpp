@@ -135,7 +135,7 @@ void Backend::onExportRequest(bool height, bool weight, bool bp, bool bg, bool h
     {
         exportOxygenSaturation(&xlsx);
     }
-    if (!periodJsonDoc.isNull() || periodJsonDoc.isObject())
+    if ((periodFlowList.length() > 0) || (periodList.length() > 0))
     {
         exportMenstruationData(&xlsx);
     }
