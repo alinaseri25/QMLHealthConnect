@@ -555,37 +555,60 @@ Rectangle {
             inputPanel.periodActive = state
         }
 
-        function onMenstruationDataRead(periods, flows) {
+        function onMenstruationDataRead(jsonData) {
+            console.log("[MAIN] menstruationDataRead raw:", jsonData.substring(0, 200))
+
+            var root
+            try {
+                root = JSON.parse(jsonData)
+            } catch(e) {
+                console.warn("[MAIN] JSON parse error:", e)
+                return
+            }
+
+            var periods = root.periods || []
+            var flows   = root.flows   || []
+
+            console.log("[MAIN] periods:", periods.length, "| flows:", flows.length)
+
+            if (periods.length === 0) {
+                console.log("[MAIN] No menstruation data")
+                chartView.menstruationPeriods = []
+                return
+            }
+
             var result = []
-
             for (var i = 0; i < periods.length; i++) {
-                var p        = periods[i]
-                var pStartMs = p.start.getTime()
-                var pEndMs   = p.end.getTime()
+                var p = periods[i]
 
-                // جمع‌آوری flow‌های مربوط به این period
+                // ✅ مستقیم عدد - نه Date، نه String
+                var startMs = p.startMs
+                var endMs   = p.endMs
+
+                if (isNaN(startMs) || isNaN(endMs)) {
+                    console.warn("[MAIN] ❌ NaN ms at period", i)
+                    continue
+                }
+
+                console.log("[MAIN] period[" + i + "]:",
+                            new Date(startMs).toISOString(),
+                            "→", new Date(endMs).toISOString())
+
+                // ── flows مرتبط با این دوره ───────────────────────────
                 var segFlows = []
                 for (var j = 0; j < flows.length; j++) {
-                    var f   = flows[j]
-                    var fMs = f.time.getTime()
-                    if (fMs >= pStartMs && fMs <= pEndMs) {
-                        segFlows.push({
-                            time:  fMs,
-                            level: f.level
-                        })
+                    var f = flows[j]
+                    if (f.timeMs >= startMs && f.timeMs <= endMs) {
+                        segFlows.push({ time: f.timeMs, level: f.level })
                     }
                 }
 
-                // مرتب‌سازی بر اساس زمان
-                segFlows.sort(function(a, b) { return a.time - b.time })
+                console.log("[MAIN] period[" + i + "] flows:", segFlows.length)
 
-                result.push({
-                    start: pStartMs,
-                    end:   pEndMs,
-                    flows: segFlows
-                })
+                result.push({ start: startMs, end: endMs, flows: segFlows })
             }
 
+            console.log("[MAIN] ✅ menstruationPeriods:", result.length)
             chartView.menstruationPeriods = result
         }
 

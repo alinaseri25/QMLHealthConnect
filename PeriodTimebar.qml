@@ -5,102 +5,161 @@ Canvas {
     id: root
 
     // ── ورودی‌ها ──────────────────────────────────────────────
-    property var xAxis: null          // DateTimeAxis
-    property var periodData: []       // آرایه آبجکت‌های {start, end, flows:[{time,level}]}
+    property var xAxis: null
+    property var periodData: []
 
     // ── ظاهر ──────────────────────────────────────────────────
-    property real barHeight:  10
-    property real barRadius:  3
+    property real barHeight:    10
+    property real barRadius:    4
     property real bottomMargin: 2
 
-    // رنگ‌ها بر اساس flow level
     readonly property var flowColors: [
-        "#00000000",    // 0 = UNKNOWN → شفاف
-        "#55F48FB1",    // 1 = LIGHT   → صورتی کم‌رنگ
-        "#99E91E8C",    // 2 = MEDIUM  → صورتی متوسط
-        "#DDC2185A"     // 3 = HEAVY   → قرمز تیره
+        "#00000000",
+        "#55F48FB1",
+        "#99E91E8C",
+        "#DDC2185A"
     ]
 
     // ── wiring ────────────────────────────────────────────────
-    anchors.fill: parent
-
     Connections {
         target: root.xAxis
         function onMinChanged() { root.requestPaint() }
         function onMaxChanged() { root.requestPaint() }
     }
 
-    onPeriodDataChanged: requestPaint()
-    onWidthChanged:      requestPaint()
-    onHeightChanged:     requestPaint()
+    onPeriodDataChanged: {
+        console.log("[PTB] periodData changed, length=",
+                    periodData ? periodData.length : "null")
+        requestPaint()
+    }
+    onWidthChanged:  requestPaint()
+    onHeightChanged: requestPaint()
+
+    // ── تابع کمکی: رسم مستطیل گوشه‌گرد ──────────────────────
+    function drawRoundRect(ctx, x, y, w, h, r) {
+        // اگر عرض یا ارتفاع خیلی کم است، radius را محدود کن
+        r = Math.min(r, w / 2, h / 2)
+        if (r < 0) r = 0
+
+        ctx.beginPath()
+        ctx.moveTo(x + r, y)
+        ctx.lineTo(x + w - r, y)
+        ctx.arcTo(x + w, y,     x + w, y + r,     r)
+        ctx.lineTo(x + w, y + h - r)
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+        ctx.lineTo(x + r, y + h)
+        ctx.arcTo(x,     y + h, x,     y + h - r, r)
+        ctx.lineTo(x,     y + r)
+        ctx.arcTo(x,     y,     x + r, y,         r)
+        ctx.closePath()
+    }
 
     // ── رسم ───────────────────────────────────────────────────
     onPaint: {
         var ctx = getContext("2d")
         ctx.clearRect(0, 0, width, height)
 
-        if (!xAxis || !periodData || periodData.length === 0) return
+        // ── Guard 1: xAxis ──
+        if (!xAxis) {
+            console.warn("[PTB] SKIP: xAxis is null")
+            return
+        }
 
-        var xMin   = xAxis.min.getTime()
-        var xMax   = xAxis.max.getTime()
+        // ── Guard 2: periodData ──
+        if (!periodData || periodData.length === 0) {
+            console.warn("[PTB] SKIP: periodData empty")
+            return
+        }
+
+        // ── Guard 3: ابعاد ──
+        if (width <= 0 || height <= 0) {
+            console.warn("[PTB] SKIP: canvas size invalid", width, height)
+            return
+        }
+
+        // ── محاسبه xRange ──
+        var xMin = xAxis.min instanceof Date
+                   ? xAxis.min.getTime()
+                   : Number(xAxis.min)
+        var xMax = xAxis.max instanceof Date
+                   ? xAxis.max.getTime()
+                   : Number(xAxis.max)
+
+        console.log("[PTB] xMin ms =", xMin, "→", new Date(xMin).toISOString())
+        console.log("[PTB] xMax ms =", xMax, "→", new Date(xMax).toISOString())
+
+        // ── Guard 4: xRange ──
         var xRange = xMax - xMin
-        if (xRange <= 0) return
+        if (xRange <= 0) {
+            console.warn("[PTB] SKIP: xRange <= 0 →", xRange)
+            return
+        }
 
         var barY = height - barHeight - bottomMargin
 
+        // ── رسم دوره‌ها ──
         for (var i = 0; i < periodData.length; i++) {
             var period = periodData[i]
 
-            var pStart = period.start   // msec
-            var pEnd   = period.end     // msec
+            var pStart = (period.start instanceof Date)
+                         ? period.start.getTime()
+                         : Number(period.start)
+            var pEnd   = (period.end instanceof Date)
+                         ? period.end.getTime()
+                         : Number(period.end)
 
-            // کلا خارج از بازه؟ رد کن
-            if (pEnd < xMin || pStart > xMax) continue
+            console.log("[PTB] period[" + i + "]:",
+                        new Date(pStart).toISOString(), "→",
+                        new Date(pEnd).toISOString())
 
-            var flows = period.flows   // [{time, level}, ...]
+            if (isNaN(pStart) || isNaN(pEnd)) {
+                console.warn("[PTB] NaN! start=", period.start, "end=", period.end)
+                continue
+            }
 
+            if (pEnd < xMin || pStart > xMax) {
+                console.warn("[PTB] period[" + i + "] OUT OF RANGE")
+                continue
+            }
+
+            var flows = period.flows
+
+            // ── بدون flow: رنگ پیش‌فرض ──
             if (!flows || flows.length === 0) {
-                // بدون flow data → خطکش خاکستری کم‌رنگ
-                var cs = Math.max(pStart, xMin)
-                var ce = Math.min(pEnd,   xMax)
-                ctx.fillStyle = "#33808080"
-                ctx.beginPath()
-                ctx.roundRect(
-                    (cs - xMin) / xRange * width,
-                    barY,
-                    Math.max((ce - cs) / xRange * width, 4),
-                    barHeight,
-                    barRadius
-                )
+                var cs  = Math.max(pStart, xMin)
+                var ce  = Math.min(pEnd,   xMax)
+                var rx  = (cs - xMin) / xRange * width
+                var rw  = Math.max((ce - cs) / xRange * width, 4)
+
+                ctx.fillStyle = "#88E91E8C"
+                drawRoundRect(ctx, rx, barY, rw, barHeight, barRadius)
                 ctx.fill()
                 continue
             }
 
-            // ── رسم flow به صورت segment‌های رنگی ────────────
-            // هر flow record یک نقطه زمانی است
-            // بازه هر segment: از time[i] تا time[i+1] (یا pEnd)
+            // ── رسم بخش‌های flow ──
             for (var j = 0; j < flows.length; j++) {
-                var segStart = flows[j].time
-                var segEnd   = (j + 1 < flows.length)
-                               ? flows[j + 1].time
-                               : pEnd
+                var segStart = (j === 0)
+                               ? pStart
+                               : Number(flows[j - 1].time)
+                var segEnd   = (j === flows.length - 1)
+                               ? pEnd
+                               : Number(flows[j].time)
+                var level    = Math.min(Math.max(Number(flows[j].level), 0), 3)
 
-                // کلیپ به بازه نمایشی
-                var cStart = Math.max(segStart, xMin)
-                var cEnd   = Math.min(segEnd,   xMax)
-                if (cEnd <= cStart) continue
+                var cs2 = Math.max(segStart, xMin)
+                var ce2 = Math.min(segEnd,   xMax)
+                if (ce2 <= cs2) continue
 
-                var x1 = (cStart - xMin) / xRange * width
-                var x2 = (cEnd   - xMin) / xRange * width
-                var w  = Math.max(x2 - x1, 3)
+                var sx = (cs2 - xMin) / xRange * width
+                var sw = Math.max((ce2 - cs2) / xRange * width, 2)
 
-                var level = Math.min(Math.max(flows[j].level, 0), 3)
-                ctx.fillStyle = root.flowColors[level]
-
-                ctx.beginPath()
-                ctx.roundRect(x1, barY, w, barHeight, barRadius)
+                ctx.fillStyle = flowColors[level]
+                drawRoundRect(ctx, sx, barY, sw, barHeight, barRadius)
                 ctx.fill()
             }
         }
+
+        console.log("[PTB] paint done ✅")
     }
 }

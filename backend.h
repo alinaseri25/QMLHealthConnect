@@ -124,8 +124,9 @@ signals:
     void oxygenSaturationWritten(bool success, QString message);
     void menstruationFlowWritten(bool success, QString message);
     void menstruationPeriodWritten(bool success, QString message);
-    void menstruationDataRead(QList<MenstruationPeriod> periods,
-                              QList<MenstruationFlow>   flows);
+    // void menstruationDataRead(QList<MenstruationPeriod> periods,
+    //                           QList<MenstruationFlow>   flows);
+    void menstruationDataRead(QString jsonData);
     void periodStateChanged(bool state);
 };
 

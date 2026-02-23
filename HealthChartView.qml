@@ -364,11 +364,62 @@ Item {
         x:      chartView.plotArea.x
         y:      chartView.plotArea.y + chartView.plotArea.height - 14
         width:  chartView.plotArea.width
-        height: 12
+        height: 14
         z:      2
 
         xAxis:      chartView.xAxis
         periodData: root.menstruationPeriods
+
+        // ── DEBUG border ──
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            border.color: "red"
+            border.width: 1
+            z: 99
+        }
     }
+
+    // Component.onCompleted: {
+    //     var now = new Date().getTime()
+    //     var day = 24 * 60 * 60 * 1000
+
+    //     // ── تنظیم xAxis قبل از تزریق mock data ──
+    //     // اطمینان از اینکه xAxis بازه معتبر دارد
+    //     if (chartView.xAxis) {
+    //         chartView.xAxis.min = new Date(now - 7 * day)
+    //         chartView.xAxis.max = new Date(now)
+    //         console.log("[HCV] xAxis forced:",
+    //                     chartView.xAxis.min.toISOString(),
+    //                     "→", chartView.xAxis.max.toISOString())
+    //     }
+
+    //     var mockData = [
+    //         {
+    //             start: now - 4 * day,
+    //             end:   now - 1 * day,
+    //             flows: [
+    //                 { time: now - 4 * day,       level: 1 },
+    //                 { time: now - 3 * day,       level: 2 },
+    //                 { time: now - 2 * day,       level: 3 },
+    //                 { time: now - 1.5 * day,     level: 2 }
+    //             ]
+    //         }
+    //     ]
+
+    //     console.log("=== Mock periodData injected ===")
+    //     console.log("start:", new Date(mockData[0].start).toISOString())
+    //     console.log("end:",   new Date(mockData[0].end).toISOString())
+    //     console.log("xAxis.min:", chartView.xAxis ? chartView.xAxis.min : "NULL")
+    //     console.log("xAxis.max:", chartView.xAxis ? chartView.xAxis.max : "NULL")
+
+    //     menstruationPeriods = mockData
+
+    //     // ── Force repaint پس از تزریق ──
+    //     Qt.callLater(function() {
+    //         periodTimebar.requestPaint()
+    //         console.log("[HCV] forced repaint after mock inject")
+    //     })
+    // }
 
 } // end Item

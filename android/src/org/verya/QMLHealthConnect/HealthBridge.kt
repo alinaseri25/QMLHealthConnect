@@ -981,116 +981,65 @@ object HealthBridge {
     // }
     // ─────────────────────────────────────────────────────────────
     @JvmStatic
-    fun readMenstruationData(
-        startTime: String? = null,
-        endTime:   String? = null
-    ): String {
+    fun readMenstruationData(startTime: String?, endTime: String?): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
+
         return try {
-            // ── خواندن Periods ──────────────────────────────────
-            val periodsArray = JSONArray()
-            var pageToken: String? = null
-            var pageCount = 0
+            val result = runBlocking {
+                val timeFilter = createTimeFilter(startTime, endTime)
 
-            do {
-                val request = ReadRecordsRequest(
-                    recordType      = MenstruationPeriodRecord::class,
-                    timeRangeFilter = createTimeFilter(startTime, endTime),
-                    ascendingOrder  = true,
-                    pageSize        = 1000,
-                    pageToken       = pageToken
+                // ── خواندن دوره‌ها ──────────────────────────────────────
+                val periodsResponse = safeReadBlocking(
+                    client,
+                    ReadRecordsRequest(
+                        recordType       = MenstruationPeriodRecord::class,
+                        timeRangeFilter  = timeFilter
+                    )
                 )
-                val response = runBlocking(Dispatchers.IO) {
-                    safeReadBlocking(client, request)
-                }
 
-                response.records.forEach { record ->
-                    periodsArray.put(JSONObject().apply {
-                        put("start", record.startTime.toString())
-                        put("end",   record.endTime.toString())
-                    })
-                }
-
-                val newToken = response.pageToken
-                pageCount++
-
-                if (newToken == pageToken && newToken != null) {
-                    Log.w(TAG, "⚠️ MenstruationPeriod: pageToken unchanged — SDK bug. Stopping.")
-                    break
-                }
-                pageToken = newToken
-
-            } while (pageToken != null && pageCount < MAX_PAGES)
-
-            // ── خواندن Flows ─────────────────────────────────────
-            // از sortedMap استفاده می‌کنیم — هم‌سبک با readHeartRate و readOxygenSaturation
-            val flowMap = sortedMapOf<Instant, Int>()
-            pageToken = null
-            pageCount = 0
-
-            do {
-                val request = ReadRecordsRequest(
-                    recordType      = MenstruationFlowRecord::class,
-                    timeRangeFilter = createTimeFilter(startTime, endTime),
-                    ascendingOrder  = true,
-                    pageSize        = 1000,
-                    pageToken       = pageToken
+                // ── خواندن جریان‌ها ─────────────────────────────────────
+                val flowsResponse = safeReadBlocking(
+                    client,
+                    ReadRecordsRequest(
+                        recordType       = MenstruationFlowRecord::class,
+                        timeRangeFilter  = timeFilter
+                    )
                 )
-                val response = runBlocking(Dispatchers.IO) {
-                    safeReadBlocking(client, request)
+
+                val periodsArr = JSONArray()
+                for (record in periodsResponse.records) {
+                    val obj = JSONObject()
+                    // ✅ کلیدهای صحیح: "start" و "end"
+                    obj.put("start", record.startTime.toString())
+                    obj.put("end",   record.endTime.toString())
+                    periodsArr.put(obj)
+
+                    Log.d("HealthBridge", "[Kotlin] period: ${record.startTime} → ${record.endTime}")
                 }
 
-                response.records.forEach { record ->
-                    // تبدیل enum به Int — سازگار با C++ و QML
-                    val flowInt = when (record.flow) {
-                        MenstruationFlowRecord.FLOW_LIGHT   -> 1
-                        MenstruationFlowRecord.FLOW_MEDIUM  -> 2
-                        MenstruationFlowRecord.FLOW_HEAVY   -> 3
-                        else                                -> 0
-                    }
-                    flowMap[record.time] = flowInt
+                val flowsArr = JSONArray()
+                for (record in flowsResponse.records) {
+                    val obj = JSONObject()
+                    // ✅ کلید صحیح: "time" (نه "timeMs")
+                    // ✅ مقدار صحیح: record.flow (نه record.level)
+                    obj.put("time",  record.time.toString())
+                    obj.put("level", record.flow)   // ← این مقدار 1، 2 یا 3 است
+
+                    Log.d("HealthBridge", "[Kotlin] flow: time=${record.time} flow=${record.flow}")
+                    flowsArr.put(obj)
                 }
 
-                val newToken = response.pageToken
-                pageCount++
-
-                if (newToken == pageToken && newToken != null) {
-                    Log.w(TAG, "⚠️ MenstruationFlow: pageToken unchanged — SDK bug. Stopping.")
-                    break
-                }
-                pageToken = newToken
-
-            } while (pageToken != null && pageCount < MAX_PAGES)
-
-            // ── اگه هیچ داده‌ای نبود ────────────────────────────
-            if (periodsArray.length() == 0 && flowMap.isEmpty()) {
-                return "NO_MENSTRUATION_DATA"
+                val root = JSONObject()
+                root.put("periods", periodsArr)
+                root.put("flows",   flowsArr)
+                root.toString()
             }
-
-            // ── ساخت flowsArray از flowMap ───────────────────────
-            val flowsArray = JSONArray()
-            flowMap.forEach { (time, flowInt) ->
-                flowsArray.put(JSONObject().apply {
-                    put("time", time.toString())
-                    put("flow", flowInt)
-                })
-            }
-
-            // ── خروجی نهایی ─────────────────────────────────────
-            JSONObject().apply {
-                put("periods", periodsArray)
-                put("flows",   flowsArray)
-            }.toString()
-
-        } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Security error reading menstruation data", e)
-            "SECURITY_ERROR"
+            result
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error reading menstruation data", e)
+            Log.e("HealthBridge", "readMenstruationData error: ${e.message}")
             "ERROR: ${e.message}"
         }
     }
-
 
     @JvmStatic
     fun openHealthConnectInStore(activity: Activity): String {

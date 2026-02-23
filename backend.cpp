@@ -58,9 +58,49 @@ void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool h
         readOxygenSaturation(startTime, endTime);
     }
 
+    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList,
+                     heartRateList, bloodGlucoseList, oxygenSaturationList);
+
     readMenstruationData(startTime,endTime);
 
-    emit newDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList, oxygenSaturationList);
+
+    QString menstrJsonStr;
+
+    if (periodJsonDoc.isNull() || !periodJsonDoc.isObject()) {
+        menstrJsonStr = "{\"periods\":[],\"flows\":[]}";
+    } else {
+        QJsonObject root     = periodJsonDoc.object();
+        QJsonArray  inPeriods = root["periods"].toArray();
+        QJsonArray  inFlows   = root["flows"].toArray();
+
+        QJsonArray outPeriods;
+        for (const MenstruationPeriod &p : periodList) {
+            QJsonObject out;
+            out["startMs"] = p.start.toMSecsSinceEpoch();
+            out["endMs"]   = p.end.toMSecsSinceEpoch();
+            outPeriods.append(out);
+        }
+
+        QJsonArray outFlows;
+        for (const MenstruationFlow &f : periodFlowList) {
+            QJsonObject out;
+            out["timeMs"] = f.time.toMSecsSinceEpoch();
+            out["level"]  = f.level;
+            outFlows.append(out);
+        }
+
+        QJsonObject finalRoot;
+        finalRoot["periods"] = outPeriods;
+        finalRoot["flows"]   = outFlows;
+        menstrJsonStr = QJsonDocument(finalRoot).toJson(QJsonDocument::Compact);
+    }
+
+    qDebug() << "📤 menstruation JSON ready:" << menstrJsonStr.left(200);
+
+    // ✅ فقط emit داخل تایمر - jsonStr کپی شده در lambda
+    QTimer::singleShot(100, this, [this, menstrJsonStr]() {
+        emit menstruationDataRead(menstrJsonStr);
+    });
 #else
     qDebug() << "Not Android";
 #endif
@@ -94,6 +134,10 @@ void Backend::onExportRequest(bool height, bool weight, bool bp, bool bg, bool h
     if(spo2)
     {
         exportOxygenSaturation(&xlsx);
+    }
+    if (!periodJsonDoc.isNull() || periodJsonDoc.isObject())
+    {
+        exportMenstruationData(&xlsx);
     }
 
     QString excelFileName = QDateTime::currentDateTime().toString(QString("yyyy-MM-dd_hh:mm:ss"));
@@ -590,40 +634,64 @@ void Backend::readMenstruationData(QString startFrom, QString endTo)
         jsonStr == "CLIENT_NULL"    ||
         jsonStr == "NO_MENSTRUATION_DATA") {
         qDebug() << "⚠️ readMenstruationData:" << jsonStr;
-        emit menstruationDataRead(periodList, periodFlowList);
+        // ❌ اینجا emit نکن - بذار onUpdateRequest بعد از newDataRead emit کنه
         return;
     }
 
-    // ── پارس JSON ────────────────────────────────────────────
-    // فرمت: {"periods":[{"start":"...","end":"..."},...],
-    //         "flows":[{"time":"...","level":2},...]}
-    QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-    if (!doc.isObject()) {
+    periodJsonDoc = QJsonDocument::fromJson(jsonStr.toUtf8());
+    if (!periodJsonDoc.isObject()) {
         qDebug() << "❌ readMenstruationData: invalid JSON";
-        emit menstruationDataRead(periodList, periodFlowList);
         return;
     }
 
-    QJsonObject root = doc.object();
+    QJsonObject root = periodJsonDoc.object();
 
-    // periods
+    // ── periods ──────────────────────────────────────────────
     QJsonArray periods = root["periods"].toArray();
     for (const QJsonValue &v : periods) {
         QJsonObject obj = v.toObject();
         MenstruationPeriod p;
-        p.start = QDateTime::fromString(obj["start"].toString(), Qt::ISODate);
-        p.end   = QDateTime::fromString(obj["end"].toString(),   Qt::ISODate);
+
+        // ✅ اصلاح: اضافه کردن Qt::UTC صریح
+        QString startStr = obj["start"].toString();
+        QString endStr   = obj["end"].toString();
+
+        p.start = QDateTime::fromString(startStr, Qt::ISODateWithMs);
+        p.end   = QDateTime::fromString(endStr,   Qt::ISODateWithMs);
+
+        // اگر timeSpec درست تنظیم نشده، دستی UTC بگذار
+        if (p.start.timeSpec() != Qt::UTC) {
+            p.start.setTimeSpec(Qt::UTC);
+        }
+        if (p.end.timeSpec() != Qt::UTC) {
+            p.end.setTimeSpec(Qt::UTC);
+        }
+
+        qDebug() << "[readMenst] period start raw:" << startStr;
+        qDebug() << "[readMenst] period start parsed:" << p.start.toString(Qt::ISODateWithMs);
+        qDebug() << "[readMenst] period start ms:" << p.start.toMSecsSinceEpoch();
+        qDebug() << "[readMenst] period start timeSpec:" << p.start.timeSpec();
+
         if (p.start.isValid() && p.end.isValid()) {
             periodList.append(p);
+        } else {
+            qDebug() << "❌ Invalid period skipped:" << startStr << endStr;
         }
     }
 
-    // flows
+    // ── flows ─────────────────────────────────────────────────
     QJsonArray flows = root["flows"].toArray();
     for (const QJsonValue &v : flows) {
         QJsonObject obj = v.toObject();
         MenstruationFlow f;
-        f.time  = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+
+        QString timeStr = obj["time"].toString();
+        f.time  = QDateTime::fromString(timeStr, Qt::ISODateWithMs);
+
+        if (f.time.timeSpec() != Qt::UTC) {
+            f.time.setTimeSpec(Qt::UTC);
+        }
+
         f.level = obj["level"].toInt(0);
         if (f.time.isValid()) {
             periodFlowList.append(f);
@@ -632,9 +700,9 @@ void Backend::readMenstruationData(QString startFrom, QString endTo)
 
     qDebug() << "✅ Menstruation read:"
              << periodList.size() << "periods,"
-             << periodFlowList.size()   << "flows";
+             << periodFlowList.size() << "flows";
 
-    emit menstruationDataRead(periodList, periodFlowList);
+    // ✅ اینجا emit نکن! - onUpdateRequest این کار را می‌کند
 #else
     qDebug() << "Not Android - readMenstruationData skipped";
 #endif
