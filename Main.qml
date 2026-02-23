@@ -29,6 +29,8 @@ Rectangle {
     signal setHeartRate(double bpm,date dt)
     signal setBloodGlucose(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal,date dt)
     signal setOxygenSaturation(double value,date dt)
+    signal setMenstruationFlow(int flowLevel,date dt)
+    signal setMenstruationPeriodEnd(date dt)
 
     // ✅ یک tooltip سراسری برای کل برنامه
     GenericTooltip {
@@ -255,6 +257,22 @@ Rectangle {
                 }
                 dateTimePicker.openWithDate(new Date(Date.now()))
             }
+
+            onMenstruationFlowSubmitted: (value) =>{
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setMenstruationFlow(value, dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
+
+            onMenstruationPeriodEndRequested:{
+                _pendingAction = (dt) => {
+                    loadingOverlay.show()
+                    mainView.setMenstruationPeriodEnd(dt)
+                }
+                dateTimePicker.openWithDate(new Date(Date.now()))
+            }
     }
 
     // ===== دکمه Export =====
@@ -376,6 +394,26 @@ Rectangle {
         }
     }
 
+    Timer {
+        id: menstruationStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.menstruationStatusText  = ""
+            inputPanel.menstruationStatusColor = "gray"
+        }
+    }
+
+    Timer {
+        id: periodEndStatusTimer
+        interval: parent.statusResetDelay
+        repeat: false
+        onTriggered: {
+            inputPanel.periodEndStatusText  = ""
+            inputPanel.periodEndStatusColor = "gray"
+        }
+    }
+
     // ===== اتصالات Backend =====
     Component.onCompleted: {
         updateSignal.connect(myBackend.onUpdateRequest)
@@ -386,8 +424,12 @@ Rectangle {
         setHeartRate.connect(myBackend.writeHeartRate)
         setBloodGlucose.connect(myBackend.writeBloodGlucose)
         setOxygenSaturation.connect(myBackend.writeOxygenSaturation)
+        setMenstruationFlow.connect(myBackend.writeMenstruationFlow)
+        setMenstruationPeriodEnd.connect(myBackend.writeMenstruationPeriod)
 
         controlButtons.setInitialVisibility(false,true,true,false,true,true)
+
+        myBackend.onQmlReady()
     }
 
     Connections {
@@ -483,12 +525,68 @@ Rectangle {
             oxygenSaturationTimer.restart()
         }
 
-        function onMenstruationPeriodWritten(success, message)
-        {
+        function onMenstruationFlowWritten(success, message) {
+            if (success) {
+                inputPanel.menstruationStatusText  = "✅ " + message
+                inputPanel.menstruationStatusColor = "#2E7D32"
+                inputPanel.periodActive = true   // دوره شروع شد
+                startUpdate.restart()
+            } else {
+                inputPanel.menstruationStatusText  = "❌ " + message
+                inputPanel.menstruationStatusColor = "red"
+            }
+            menstruationStatusTimer.restart()
         }
 
-        function onMenstruationFlowWritten(success, message)
-        {
+        function onMenstruationPeriodWritten(success, message) {
+            if (success) {
+                inputPanel.periodEndStatusText  = "✅ " + message
+                inputPanel.periodEndStatusColor = "#2E7D32"
+                inputPanel.periodActive = false  // دوره تموم شد
+                startUpdate.restart()
+            } else {
+                inputPanel.periodEndStatusText  = "❌ " + message
+                inputPanel.periodEndStatusColor = "red"
+            }
+            periodEndStatusTimer.restart()
+        }
+
+        function onPeriodStateChanged(state) {
+            inputPanel.periodActive = state
+        }
+
+        function onMenstruationDataRead(periods, flows) {
+            var result = []
+
+            for (var i = 0; i < periods.length; i++) {
+                var p        = periods[i]
+                var pStartMs = p.start.getTime()
+                var pEndMs   = p.end.getTime()
+
+                // جمع‌آوری flow‌های مربوط به این period
+                var segFlows = []
+                for (var j = 0; j < flows.length; j++) {
+                    var f   = flows[j]
+                    var fMs = f.time.getTime()
+                    if (fMs >= pStartMs && fMs <= pEndMs) {
+                        segFlows.push({
+                            time:  fMs,
+                            level: f.level
+                        })
+                    }
+                }
+
+                // مرتب‌سازی بر اساس زمان
+                segFlows.sort(function(a, b) { return a.time - b.time })
+
+                result.push({
+                    start: pStartMs,
+                    end:   pEndMs,
+                    flows: segFlows
+                })
+            }
+
+            chartView.menstruationPeriods = result
         }
 
         function onNewDataRead(hList, wList, bpSystolicList, bpDiastolicList, heartRateList, bloodGlucoseList, oxygenSaturationList) {

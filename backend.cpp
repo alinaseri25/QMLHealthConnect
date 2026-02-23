@@ -4,12 +4,12 @@ Backend::Backend(QObject *parent)
     : QObject{parent}
 {
     loadAvailablePath();
-    checkPermissions();
+}
 
+void Backend::onQmlReady()
+{
+    checkPermissions();
     loadPeriodState();
-    // periodActive = !periodActive;
-    // currentPeriodStart = QDateTime::currentDateTime();
-    // savePeriodState();
 }
 
 void Backend::onUpdateRequest(bool height, bool weight, bool bp, bool bg, bool hr, bool spo2, QDateTime startFrom, QDateTime endTo)
@@ -295,7 +295,7 @@ void Backend::writeHeartRate(int bpm,QDateTime dt)
     }
 
     // ✅ دریافت زمان
-    QString currentTime = dt.toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toUTC().toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     QJniObject result = QJniObject::callStaticObjectMethod(
@@ -326,63 +326,39 @@ void Backend::writeBloodGlucose(double glucoseMgDl, int specimenSource, int meal
 {
 #ifdef Q_OS_ANDROID
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
-
     if (!activity.isValid()) {
-        qDebug() << "❌ Activity is invalid!";
         emit bloodGlucoseWritten(false, "Activity is invalid");
         return;
     }
 
-    // اعتبارسنجی
     if (glucoseMgDl < 20.0 || glucoseMgDl > 600.0) {
-        qDebug() << "❌ Invalid glucose value: " << glucoseMgDl;
-        emit bloodGlucoseWritten(false,
-                                 QString("مقدار قند خون نامعتبر است: %1 mg/dL").arg(glucoseMgDl));
+        emit bloodGlucoseWritten(false, QString("مقدار قند خون نامعتبر: %1 mg/dL").arg(glucoseMgDl));
         return;
     }
 
-    if (specimenSource < 0 || specimenSource > 4) {
-        emit bloodGlucoseWritten(false, "specimen_source نامعتبر است (باید 0-4 باشد)");
-        return;
-    }
-
-    if (mealType < 0 || mealType > 3) {
-        emit bloodGlucoseWritten(false, "meal_type نامعتبر است (باید 0-3 باشد)");
-        return;
-    }
-
-    if (relationToMeal < 0 || relationToMeal > 4) {
-        emit bloodGlucoseWritten(false, "relation_to_meal نامعتبر است (باید 0-4 باشد)");
-        return;
-    }
-
-    // ✅ دریافت زمان
-    QString currentTime = dt.toString(Qt::ISODateWithMs);
+    // ✅ UTC — مثل writeHeight
+    QString currentTime = dt.toUTC().toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
+    // ✅ اصلاح: (D, String, I, I, I) — String دوم میاد نه پنجم
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeBloodGlucose",
-        "(DIIILjava/lang/String;)Ljava/lang/String;",
+        "(DLjava/lang/String;III)Ljava/lang/String;",
         glucoseMgDl,
-        specimenSource,
-        mealType,
-        relationToMeal,
-        jTime.object<jstring>()
+        jTime.object<jstring>(),
+        (jint)specimenSource,
+        (jint)mealType,
+        (jint)relationToMeal
         );
 
     QString status = result.toString();
     bool success = !status.contains("ERROR") && !status.contains("NULL");
-
-    if(success)
-    {
-        status = QString("%1 mg/dl").arg(glucoseMgDl);
-    }
-
+    if (success) status = QString("%1 mg/dl").arg(glucoseMgDl);
     emit bloodGlucoseWritten(success, status);
 
 #else
-    qDebug() << "Not Android - Blood glucose write skipped";
+    qDebug() << "Not Android";
     emit bloodGlucoseWritten(false, "Not running on Android");
 #endif
 }
@@ -412,7 +388,7 @@ void Backend::writeOxygenSaturation(double percentage, QDateTime dt)
     }
 
     // ✅ دریافت زمان فعلی به فرمت ISO8601
-    QString currentTime = dt.toString(Qt::ISODateWithMs);
+    QString currentTime = dt.toUTC().toString(Qt::ISODateWithMs);
     QJniObject jTime = QJniObject::fromString(currentTime);
 
     // ✅ فراخوانی متد Kotlin
@@ -482,9 +458,9 @@ void Backend::writeMenstruationFlow(int flowLevel, QDateTime dt)
     QJniObject result = QJniObject::callStaticObjectMethod(
         "org/verya/QMLHealthConnect/HealthBridge",
         "writeMenstruationFlow",
-        "(ILjava/lang/String;)Ljava/lang/String;",
-        (jint)flowLevel,
-        jTime.object<jstring>()
+        "(Ljava/lang/String;I)Ljava/lang/String;",
+        jTime.object<jstring>(),
+        (jint)flowLevel
         );
 
     QString status = result.toString();
@@ -538,6 +514,8 @@ void Backend::writeMenstruationPeriod(QDateTime endTime)
         return;
     }
 
+    qDebug() << "start : " << currentPeriodStart.toString("yyyy/MM/dd hh:mm:ss") << " --- end : " << endTime.toString("yyyy/MM/dd hh:mm:ss");
+
     QString startIso = currentPeriodStart.toUTC().toString(Qt::ISODateWithMs);
     QString endIso   = endTime.toUTC().toString(Qt::ISODateWithMs);
 
@@ -560,7 +538,7 @@ void Backend::writeMenstruationPeriod(QDateTime endTime)
         periodActive = false;
         currentPeriodStart = QDateTime();
         savePeriodState();
-        emit periodStateChanged();
+        emit periodStateChanged(periodActive);
 
         status = QString("دوره از %1 تا %2 (%3 روز) ثبت شد")
                      .arg(currentPeriodStart.toString("yyyy/MM/dd"))
@@ -575,7 +553,7 @@ void Backend::writeMenstruationPeriod(QDateTime endTime)
     periodActive = false;
     currentPeriodStart = QDateTime();
     savePeriodState();
-    emit periodStateChanged();
+    emit periodStateChanged(periodActive);
 
     qDebug() << "Not Android - MenstruationPeriod write skipped."
              << "Start:" << startStr
@@ -664,7 +642,129 @@ void Backend::readMenstruationData(QString startFrom, QString endTo)
 
 void Backend::exportMenstruationData(QXlsx::Document *xlsx)
 {
+#ifdef Q_OS_ANDROID
+    // ══════════════════════════════════════════════════════════
+    // Sheet 1 — دوره‌های قاعدگی (Menstruation Periods)
+    // ══════════════════════════════════════════════════════════
+    xlsx->addSheet("Menstruation Periods");
+    xlsx->selectSheet("Menstruation Periods");
 
+    // ── فرمت هدر ──────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#D5006D"));   // صورتی تیره
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#FCE4EC"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── ستون‌ها ────────────────────────────────────────────────
+    xlsx->write(1, 1, "Start Date",    headerFormat);
+    xlsx->write(1, 2, "Start Time",    headerFormat);
+    xlsx->write(1, 3, "End Date",      headerFormat);
+    xlsx->write(1, 4, "End Time",      headerFormat);
+    xlsx->write(1, 5, "Duration (days)", headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 14);
+    xlsx->setColumnWidth(4, 12);
+    xlsx->setColumnWidth(5, 16);
+
+    // ── داده‌ها ────────────────────────────────────────────────
+    for (int i = 0; i < periodList.size(); i++) {
+        const MenstruationPeriod &p = periodList.at(i);
+        int row = i + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        QDateTime localStart = p.start.toLocalTime();
+        QDateTime localEnd   = p.end.toLocalTime();
+
+        int durationDays = static_cast<int>(p.start.daysTo(p.end)) + 1;
+
+        xlsx->write(row, 1, localStart.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, localStart.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, localEnd.toString("yyyy-MM-dd"),   rowFmt);
+        xlsx->write(row, 4, localEnd.toString("hh:mm:ss"),     rowFmt);
+        xlsx->write(row, 5, durationDays,                      rowFmt);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Sheet 2 — جریان خونریزی (Menstruation Flow)
+    // ══════════════════════════════════════════════════════════
+    xlsx->addSheet("Menstruation Flow");
+    xlsx->selectSheet("Menstruation Flow");
+
+    // ── فرمت هدر ──────────────────────────────────────────────
+    QXlsx::Format flowHeaderFormat;
+    flowHeaderFormat.setFontBold(true);
+    flowHeaderFormat.setPatternBackgroundColor(QColor("#AD1457"));  // صورتی خیلی تیره
+    flowHeaderFormat.setFontColor(Qt::white);
+    flowHeaderFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت‌های ردیف بر اساس سطح خونریزی ───────────────────
+    QXlsx::Format lightFormat;   // سبک
+    lightFormat.setPatternBackgroundColor(QColor("#F8BBD0"));
+    lightFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format mediumFormat;  // متوسط
+    mediumFormat.setPatternBackgroundColor(QColor("#F48FB1"));
+    mediumFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format heavyFormat;   // سنگین
+    heavyFormat.setPatternBackgroundColor(QColor("#E91E63"));
+    heavyFormat.setFontColor(Qt::white);
+    heavyFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format unknownFormat; // نامشخص
+    unknownFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── ستون‌ها ────────────────────────────────────────────────
+    xlsx->write(1, 1, "Date",         flowHeaderFormat);
+    xlsx->write(1, 2, "Time",         flowHeaderFormat);
+    xlsx->write(1, 3, "Flow Level",   flowHeaderFormat);
+    xlsx->write(1, 4, "Description",  flowHeaderFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 12);
+    xlsx->setColumnWidth(4, 16);
+
+    // ── داده‌ها ────────────────────────────────────────────────
+    static const QStringList levelLabels = {"Unknown", "Light", "Medium", "Heavy"};
+    static const QStringList levelEmoji  = {"❓",       "🩸",    "🩸🩸",  "🩸🩸🩸"};
+
+    for (int i = 0; i < periodFlowList.size(); i++) {
+        const MenstruationFlow &f = periodFlowList.at(i);
+        int row = i + 2;
+
+        QDateTime localTime = f.time.toLocalTime();
+
+        // انتخاب فرمت بر اساس سطح
+        QXlsx::Format *rowFmt = &unknownFormat;
+        if      (f.level == 1) rowFmt = &lightFormat;
+        else if (f.level == 2) rowFmt = &mediumFormat;
+        else if (f.level == 3) rowFmt = &heavyFormat;
+
+        int safeLevel = (f.level >= 0 && f.level <= 3) ? f.level : 0;
+
+        xlsx->write(row, 1, localTime.toString("yyyy-MM-dd"),          *rowFmt);
+        xlsx->write(row, 2, localTime.toString("hh:mm:ss"),            *rowFmt);
+        xlsx->write(row, 3, f.level,                                   *rowFmt);
+        xlsx->write(row, 4, levelLabels.at(safeLevel),                 *rowFmt);
+    }
+#else
+    qDebug() << "Not Android - readMenstruationData skipped";
+#endif
 }
 
 bool Backend::copyToDownloads(const QString &srcPath, const QString &fileName)
@@ -980,17 +1080,50 @@ void Backend::readHeight(QString startTime,QString endTime)
 void Backend::exportHeight(QXlsx::Document *xlsx)
 {
 #ifdef Q_OS_ANDROID
+    // ── Sheet ────────────────────────────────────────────────
     xlsx->addSheet("Height Data");
     xlsx->selectSheet("Height Data");
-    xlsx->write(1,1,QString("Date Time"));
-    xlsx->write(1,2,"Height (m)");
 
+    // ── فرمت هدر ─────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#1565C0"));
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#E3F2FD"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── هدر ستون‌ها ───────────────────────────────────────────
+    xlsx->write(1, 1, "Date",        headerFormat);
+    xlsx->write(1, 2, "Time",        headerFormat);
+    xlsx->write(1, 3, "Height (cm)", headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 14);
+
+    // ── داده‌ها ────────────────────────────────────────────────
     QJsonArray arr = heightJsonDoc.array();
     for (qsizetype i = 0; i < arr.size(); i++) {
         QJsonObject obj = arr.at(i).toObject();
-        QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        xlsx->write(i + 2,1,dt.toString("yyyy/MM/dd hh:mm:ss"));
-        xlsx->write(i + 2,2,obj["height_m"].toDouble());
+        QDateTime dt = QDateTime::fromString(
+                           obj["time"].toString(), Qt::ISODate
+                           ).toLocalTime();
+        double heightCm = obj["height_m"].toDouble() * 100.0;
+        int row = static_cast<int>(i) + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        xlsx->write(row, 1, dt.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, dt.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, heightCm,                  rowFmt);
     }
 #else
     qDebug() << "Not Android";
@@ -1043,17 +1176,50 @@ void Backend::readWeight(QString startTime, QString endTime)
 void Backend::exportWeight(QXlsx::Document *xlsx)
 {
 #ifdef Q_OS_ANDROID
+    // ── Sheet ────────────────────────────────────────────────
     xlsx->addSheet("Weight Data");
     xlsx->selectSheet("Weight Data");
-    xlsx->write(1,1,QString("Date Time"));
-    xlsx->write(1,2,"Weight (Kg)");
 
+    // ── فرمت هدر ─────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#2E7D32"));
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#E8F5E9"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── هدر ستون‌ها ───────────────────────────────────────────
+    xlsx->write(1, 1, "Date",        headerFormat);
+    xlsx->write(1, 2, "Time",        headerFormat);
+    xlsx->write(1, 3, "Weight (kg)", headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 14);
+
+    // ── داده‌ها ────────────────────────────────────────────────
     QJsonArray arr = weightJsonDoc.array();
     for (qsizetype i = 0; i < arr.size(); i++) {
         QJsonObject obj = arr.at(i).toObject();
-        QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        xlsx->write(i + 2,1,dt.toString("yyyy/MM/dd hh:mm:ss"));
-        xlsx->write(i + 2,2,obj["weight_kg"].toDouble());
+        QDateTime dt = QDateTime::fromString(
+                           obj["time"].toString(), Qt::ISODate
+                           ).toLocalTime();
+        double weightKg = obj["weight_kg"].toDouble();
+        int row = static_cast<int>(i) + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        xlsx->write(row, 1, dt.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, dt.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, weightKg,                  rowFmt);
     }
 #else
     qDebug() << "Not Android";
@@ -1110,18 +1276,54 @@ void Backend::readBP(QString startTime, QString endTime)
 void Backend::exportBP(QXlsx::Document *xlsx)
 {
 #ifdef Q_OS_ANDROID
-    xlsx->addSheet("Blood Perssure Data");
-    xlsx->selectSheet("Blood Perssure Data");
-    xlsx->write(1,1,QString("Date Time"));
-    xlsx->write(1,2,"systolic (mmHg)");
-    xlsx->write(1,3,"diastolic (mmHg)");
+    // ── Sheet ────────────────────────────────────────────────
+    xlsx->addSheet("Blood Pressure Data");
+    xlsx->selectSheet("Blood Pressure Data");
+
+    // ── فرمت هدر ─────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#B71C1C"));
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#FFEBEE"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── هدر ستون‌ها ───────────────────────────────────────────
+    xlsx->write(1, 1, "Date",               headerFormat);
+    xlsx->write(1, 2, "Time",               headerFormat);
+    xlsx->write(1, 3, "Systolic (mmHg)",    headerFormat);
+    xlsx->write(1, 4, "Diastolic (mmHg)",   headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 18);
+    xlsx->setColumnWidth(4, 18);
+
+    // ── داده‌ها ────────────────────────────────────────────────
     QJsonArray arr = bpJsonDoc.array();
     for (qsizetype i = 0; i < arr.size(); i++) {
         QJsonObject obj = arr.at(i).toObject();
-        QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        xlsx->write(i + 2,1,dt.toString("yyyy/MM/dd hh:mm:ss"));
-        xlsx->write(i + 2,2,obj["systolic"].toDouble());
-        xlsx->write(i + 2,3,obj["diastolic"].toDouble());
+        QDateTime dt = QDateTime::fromString(
+                           obj["time"].toString(), Qt::ISODate
+                           ).toLocalTime();
+        double systolic  = obj["systolic"].toDouble();
+        double diastolic = obj["diastolic"].toDouble();
+        int row = static_cast<int>(i) + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        xlsx->write(row, 1, dt.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, dt.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, systolic,                  rowFmt);
+        xlsx->write(row, 4, diastolic,                 rowFmt);
     }
 #else
     qDebug() << "Not Android";
@@ -1175,17 +1377,50 @@ void Backend::readHR(QString startTime, QString endTime)
 void Backend::exportHR(QXlsx::Document *xlsx)
 {
 #ifdef Q_OS_ANDROID
-    xlsx->addSheet("Heart Reat Data");
-    xlsx->selectSheet("Heart Reat Data");
-    xlsx->write(1,1,QString("Date Time"));
-    xlsx->write(1,2,"Heart Reat (bpm)");
+    // ── Sheet ────────────────────────────────────────────────
+    xlsx->addSheet("Heart Rate Data");
+    xlsx->selectSheet("Heart Rate Data");
+
+    // ── فرمت هدر ─────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#E65100"));
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#FFF3E0"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── هدر ستون‌ها ───────────────────────────────────────────
+    xlsx->write(1, 1, "Date",      headerFormat);
+    xlsx->write(1, 2, "Time",      headerFormat);
+    xlsx->write(1, 3, "BPM",       headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 10);
+
+    // ── داده‌ها ────────────────────────────────────────────────
     QJsonArray arr = heartRateJsonDoc.array();
-    // qDebug() << "💓 Processing" << arr.size() << "heart rate records";
     for (qsizetype i = 0; i < arr.size(); i++) {
         QJsonObject obj = arr.at(i).toObject();
-        QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        xlsx->write(i + 2,1,dt.toString("yyyy/MM/dd hh:mm:ss"));
-        xlsx->write(i + 2,2,obj["bpm"].toDouble());
+        QDateTime dt = QDateTime::fromString(
+                           obj["time"].toString(), Qt::ISODate
+                           ).toLocalTime();
+        int bpm = obj["bpm"].toInt();
+        int row = static_cast<int>(i) + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        xlsx->write(row, 1, dt.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, dt.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, bpm,                       rowFmt);
     }
 #else
     qDebug() << "Not Android";
@@ -1227,7 +1462,7 @@ void Backend::readBG(QString startTime, QString endTime)
             for (qsizetype i = 0; i < arr.size(); i++) {
                 QJsonObject obj = arr.at(i).toObject();
                 QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-                bloodGlucoseList.append(QPointF(dt.toMSecsSinceEpoch(), obj["glucose_mg_dl"].toDouble()));
+                bloodGlucoseList.append(QPointF(dt.toMSecsSinceEpoch(), obj["glucose"].toDouble()));
             }
         }
     }
@@ -1239,17 +1474,84 @@ void Backend::readBG(QString startTime, QString endTime)
 void Backend::exportBG(QXlsx::Document *xlsx)
 {
 #ifdef Q_OS_ANDROID
+    // ── Sheet ────────────────────────────────────────────────
     xlsx->addSheet("Blood Glucose Data");
     xlsx->selectSheet("Blood Glucose Data");
-    xlsx->write(1,1,QString("Date Time"));
-    xlsx->write(1,2,"Blood Glucose (md/dl)");
+
+    // ── فرمت هدر ─────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#4A148C"));
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#F3E5F5"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── هدر ستون‌ها ───────────────────────────────────────────
+    xlsx->write(1, 1, "Date",             headerFormat);
+    xlsx->write(1, 2, "Time",             headerFormat);
+    xlsx->write(1, 3, "Glucose (mg/dL)",  headerFormat);
+    xlsx->write(1, 4, "Specimen Source",  headerFormat);
+    xlsx->write(1, 5, "Meal Type",        headerFormat);
+    xlsx->write(1, 6, "Relation to Meal", headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 18);
+    xlsx->setColumnWidth(4, 18);
+    xlsx->setColumnWidth(5, 14);
+    xlsx->setColumnWidth(6, 18);
+
+    // ── label map ها ─────────────────────────────────────────
+    static const QStringList specimenLabels = {
+        "Unknown", "Interstitial Fluid", "Capillary Blood",
+        "Plasma",  "Serum",              "Tears",
+        "Whole Blood"
+    };
+    static const QStringList mealLabels = {
+        "Unknown", "Before Meal", "After Meal", "Fasting"
+    };
+    static const QStringList relationLabels = {
+        "Unknown", "Before Meal", "After Meal",
+        "Fasting", "General"
+    };
+
+    // ── داده‌ها ────────────────────────────────────────────────
     QJsonArray arr = bloodGlucoseJsonDoc.array();
-    // qDebug() << "🩸 Processing" << arr.size() << "blood glucose records";
     for (qsizetype i = 0; i < arr.size(); i++) {
         QJsonObject obj = arr.at(i).toObject();
-        QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
-        xlsx->write(i + 2,1,dt.toString("yyyy/MM/dd hh:mm:ss"));
-        xlsx->write(i + 2,2,obj["glucose_mg_dl"].toDouble());
+        QDateTime dt = QDateTime::fromString(
+                           obj["time"].toString(), Qt::ISODate
+                           ).toLocalTime();
+        double  glucose  = obj["glucose"].toDouble();
+        int specimen     = obj["specimenSource"].toInt(0);
+        int meal         = obj["mealType"].toInt(0);
+        int relation     = obj["relationToMeal"].toInt(0);
+        int row          = static_cast<int>(i) + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        // safe index access
+        QString specimenStr = (specimen >= 0 && specimen < specimenLabels.size())
+                                  ? specimenLabels.at(specimen) : "Unknown";
+        QString mealStr     = (meal     >= 0 && meal     < mealLabels.size())
+                              ? mealLabels.at(meal)         : "Unknown";
+        QString relationStr = (relation >= 0 && relation < relationLabels.size())
+                                  ? relationLabels.at(relation)  : "Unknown";
+
+        xlsx->write(row, 1, dt.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, dt.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, glucose,                   rowFmt);
+        xlsx->write(row, 4, specimenStr,               rowFmt);
+        xlsx->write(row, 5, mealStr,                   rowFmt);
+        xlsx->write(row, 6, relationStr,               rowFmt);
     }
 #else
     qDebug() << "Not Android";
@@ -1307,18 +1609,50 @@ void Backend::readOxygenSaturation(QString startTime, QString endTime)
 void Backend::exportOxygenSaturation(QXlsx::Document *xlsx)
 {
 #ifdef Q_OS_ANDROID
+    // ── Sheet ────────────────────────────────────────────────
     xlsx->addSheet("Oxygen Saturation Data");
     xlsx->selectSheet("Oxygen Saturation Data");
-    xlsx->write(1,1,QString("Date Time"));
-    xlsx->write(1,2,"Oxygen Saturation Data (%)");
+
+    // ── فرمت هدر ─────────────────────────────────────────────
+    QXlsx::Format headerFormat;
+    headerFormat.setFontBold(true);
+    headerFormat.setPatternBackgroundColor(QColor("#006064"));
+    headerFormat.setFontColor(Qt::white);
+    headerFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── فرمت ردیف‌های داده ────────────────────────────────────
+    QXlsx::Format dataFormat;
+    dataFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    QXlsx::Format oddRowFormat;
+    oddRowFormat.setPatternBackgroundColor(QColor("#E0F7FA"));
+    oddRowFormat.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+
+    // ── هدر ستون‌ها ───────────────────────────────────────────
+    xlsx->write(1, 1, "Date",                    headerFormat);
+    xlsx->write(1, 2, "Time",                    headerFormat);
+    xlsx->write(1, 3, "Oxygen Saturation (%)",   headerFormat);
+
+    // ── عرض ستون‌ها ────────────────────────────────────────────
+    xlsx->setColumnWidth(1, 14);
+    xlsx->setColumnWidth(2, 12);
+    xlsx->setColumnWidth(3, 22);
+
+    // ── داده‌ها ────────────────────────────────────────────────
     QJsonArray arr = oxygenSaturationJsonDoc.array();
-    //qDebug() << "🫁 Processing" << arr.size() << "oxygen saturation records";
     for (qsizetype i = 0; i < arr.size(); i++) {
         QJsonObject obj = arr.at(i).toObject();
-        QDateTime dt = QDateTime::fromString(obj["time"].toString(), Qt::ISODate);
+        QDateTime dt = QDateTime::fromString(
+                           obj["time"].toString(), Qt::ISODate
+                           ).toLocalTime();
         double percentage = obj["percentage"].toDouble();
-        xlsx->write(i + 2,1,dt.toString("yyyy/MM/dd hh:mm:ss"));
-        xlsx->write(i + 2,2,percentage);
+        int row = static_cast<int>(i) + 2;
+
+        QXlsx::Format &rowFmt = (i % 2 == 0) ? oddRowFormat : dataFormat;
+
+        xlsx->write(row, 1, dt.toString("yyyy-MM-dd"), rowFmt);
+        xlsx->write(row, 2, dt.toString("hh:mm:ss"),   rowFmt);
+        xlsx->write(row, 3, percentage,                rowFmt);
     }
 #else
     qDebug() << "Not Android";
@@ -1360,5 +1694,5 @@ void Backend::loadPeriodState()
              << "active=" << periodActive
              << "start=" << currentPeriodStart.toString("yyyy/MM/dd hh:mm:ss");
 
-    emit periodStateChanged();
+    emit periodStateChanged(periodActive);
 }

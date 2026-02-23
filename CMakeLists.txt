@@ -47,6 +47,7 @@ qt6_add_resources(QMLHealthConnect "qmlchartsgallery"
         LoadingOverlay.qml
         Toast.qml
         DateTimePicker.qml
+        PeriodTimebar.qml
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

@@ -44,6 +44,7 @@ public:
     explicit Backend(QObject *parent = nullptr);
 
 public slots:
+    void onQmlReady(void);
     void onUpdateRequest(bool height,bool weight,bool bp,bool bg,bool hr,bool spo2
                          ,QDateTime startFrom = QDateTime::currentDateTime().addMonths(-1),QDateTime endTo = QDateTime::currentDateTime());
     void onExportRequest(bool height,bool weight,bool bp,bool bg,bool hr,bool spo2);
@@ -125,7 +126,7 @@ signals:
     void menstruationPeriodWritten(bool success, QString message);
     void menstruationDataRead(QList<MenstruationPeriod> periods,
                               QList<MenstruationFlow>   flows);
-    void periodStateChanged();
+    void periodStateChanged(bool state);
 };
 
 #endif // BACKEND_H

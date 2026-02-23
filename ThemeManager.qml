@@ -47,6 +47,9 @@ QtObject {
     property color panelBorderColor: isDarkMode ? "#505050" : "#bbbbbb"
     property color separatorColor: isDarkMode ? "#404040" : "#cccccc"
 
+    // رنگ divider — برای border المان‌های غیرفعال و خطوط جداکننده فرم
+    property color dividerColor: isDarkMode ? "#484848" : "#d4d4d4"
+
     property color infoBoxColor: isDarkMode ? Qt.rgba(0.3, 0.5, 0.7, 0.15) : Qt.rgba(0.5, 0.7, 1.0, 0.1)
     property color infoBorderColor: isDarkMode ? Qt.rgba(0.4, 0.6, 0.8, 0.4) : Qt.rgba(0.3, 0.5, 0.8, 0.3)
 

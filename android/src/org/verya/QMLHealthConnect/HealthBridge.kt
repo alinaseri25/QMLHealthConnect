@@ -583,7 +583,8 @@ object HealthBridge {
     ): String {
         val client = healthConnectClient ?: return "CLIENT_NULL"
         return try {
-            val pointMap = sortedMapOf<Instant, Double>()
+            // ✅ از List استفاده می‌کنیم نه Map — تا رکوردهای هم‌زمان گم نشن
+            val records = mutableListOf<BloodGlucoseRecord>()
             var pageToken: String? = null
             var pageCount = 0
 
@@ -599,12 +600,7 @@ object HealthBridge {
                     safeReadBlocking(client, request)
                 }
 
-                // ✅ FIX: تبدیل به mg/dL برای یکسان‌سازی با writeBloodGlucose
-                // قبلاً: inMillimolesPerLiter → کلید "mmol_per_l"  (ناسازگار با write)
-                // الان: inMilligramsPerDeciliter → کلید "mg_per_dl"  (سازگار با write)
-                response.records.forEach { record ->
-                    pointMap[record.time] = record.level.inMilligramsPerDeciliter
-                }
+                records.addAll(response.records)
 
                 val newToken = response.pageToken
                 pageCount++
@@ -617,13 +613,19 @@ object HealthBridge {
 
             } while (pageToken != null && pageCount < MAX_PAGES)
 
-            if (pointMap.isEmpty()) return "NO_BLOOD_GLUCOSE_DATA"
+            if (records.isEmpty()) return "NO_BLOOD_GLUCOSE_DATA"
+
+            // ✅ مرتب‌سازی بر اساس زمان (چون دیگه sortedMap نداریم)
+            records.sortBy { it.time }
 
             val arr = JSONArray()
-            pointMap.forEach { (time, mgDl) ->
+            records.forEach { record ->
                 arr.put(JSONObject().apply {
-                    put("mg_per_dl", mgDl)
-                    put("time", time.toString())
+                    put("time",            record.time.toString())
+                    put("glucose",         record.level.inMilligramsPerDeciliter)
+                    put("specimenSource",  record.specimenSource)
+                    put("mealType",        record.mealType)
+                    put("relationToMeal",  record.relationToMeal)
                 })
             }
             arr.toString()

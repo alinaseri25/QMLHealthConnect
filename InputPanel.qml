@@ -9,6 +9,10 @@ Rectangle {
     // ✅ FIX: استفاده از required برای اطمینان از ارسال themeManager
     required property var themeManager
 
+    // ── Properties عمومی ──
+    property bool  periodActive:        false
+    property int   selectedFlowLevel:   0        // پیش‌فرض: متوسط
+
     // Signals برای ارسال داده
     signal heightSubmitted(double value)
     signal weightSubmitted(double value)
@@ -16,6 +20,8 @@ Rectangle {
     signal heartRateSubmitted(double bpm)
     signal bloodGlucoseSubmitted(double glucoseMgDl, int specimenSource, int mealType, int relationToMeal)
     signal oxygenSaturationSubmitted(double value)
+    signal menstruationFlowSubmitted(int flowLevel)
+    signal menstruationPeriodEndRequested()
 
     // ── بازه زمانی ──
     signal dateRangePickerRequested(string target, var initialDate)
@@ -69,6 +75,11 @@ Rectangle {
     property alias bloodGlucoseStatusColor: bloodGlucoseStatus.color
     property alias oxygenSaturationStatusText: oxygenSaturationStatus.text
     property alias oxygenSaturationStatusColor: oxygenSaturationStatus.color
+    property alias menstruationStatusText: menstruationStatus.text
+    property alias menstruationStatusColor: menstruationStatus.color
+    property alias periodEndStatusText: periodEndStatus.text
+    property alias periodEndStatusColor: periodEndStatus.color
+
 
     width: expanded ? (parent.width / 3) : 0
 
@@ -898,6 +909,192 @@ Rectangle {
                             Behavior on color { ColorAnimation { duration: 300 } }
                         }
                     }
+                }
+            }
+
+            // ── بخش قاعدگی ──
+            Divider {
+                themeManager: root.themeManager
+            }
+
+            Column {
+                width: parent.width
+                spacing: 12
+
+                // ── هدر بخش ──
+                Text {
+                    width: parent.width
+                    text: "🩸 قاعدگی"
+                    font.pixelSize: 15
+                    font.bold: true
+                    font.family: "Vazir"
+                    color: root.themeManager.primaryTextColor
+                    horizontalAlignment: Text.AlignRight
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                // ── نشانگر وضعیت دوره ──
+                Rectangle {
+                    width: parent.width
+                    height: 32
+                    radius: 8
+                    color: root.periodActive
+                           ? Qt.rgba(0.85, 0.1, 0.3, 0.15)
+                           : Qt.rgba(0.5, 0.5, 0.5, 0.1)
+                    Behavior on color { ColorAnimation { duration: 300 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.periodActive
+                              ? "● دوره فعال است"
+                              : "○ دوره‌ای فعال نیست"
+                        font.pixelSize: 13
+                        font.family: "Vazir"
+                        color: root.periodActive
+                               ? "#D81B60"
+                               : root.themeManager.secondaryTextColor
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                    }
+                }
+
+                // ── انتخاب سطح خونریزی ──
+                Text {
+                    width: parent.width
+                    text: "شدت خونریزی:"
+                    font.pixelSize: 13
+                    font.family: "Vazir"
+                    color: root.themeManager.secondaryTextColor
+                    horizontalAlignment: Text.AlignRight
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft
+
+                    Repeater {
+                        model: [
+                            { label: "سبک",   level: 1,
+                              activeBack: "#F8BBD0", activeBorder: "#F48FB1", activeText: "#880E4F" },
+                            { label: "متوسط", level: 2,
+                              activeBack: "#F48FB1", activeBorder: "#E91E8C", activeText: "#880E4F" },
+                            { label: "سنگین", level: 3,
+                              activeBack: "#E91E63", activeBorder: "#C2185B", activeText: "#FFFFFF" }
+                        ]
+
+                        delegate: Rectangle {
+                            width: (parent.width - 16) / 3
+                            height: 36
+                            radius: 8
+                            color: root.selectedFlowLevel === modelData.level
+                                   ? modelData.activeBack
+                                   : Qt.rgba(0.5, 0.5, 0.5, 0.08)
+                            border.color: root.selectedFlowLevel === modelData.level
+                                          ? modelData.activeBorder
+                                          : root.themeManager.dividerColor
+                            border.width: root.selectedFlowLevel === modelData.level ? 2 : 1
+
+                            Behavior on color        { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                font.pixelSize: 13
+                                font.family: "Vazir"
+                                font.bold: root.selectedFlowLevel === modelData.level
+                                color: root.selectedFlowLevel === modelData.level
+                                       ? modelData.activeText
+                                       : root.themeManager.secondaryTextColor
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.selectedFlowLevel = modelData.level
+                            }
+                        }
+                    }
+                }
+
+                // ── دکمه ثبت خونریزی ──
+                CButton {
+                    width: parent.width
+                    height: 42
+                    text: "ثبت خونریزی 🩸"
+                    themeManager: root.themeManager
+                    textColor: "white"
+                    enabled: root.selectedFlowLevel >= 1
+                    opacity: root.selectedFlowLevel >= 1 ? 1.0 : 0.5
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    onClicked: {
+                        if (root.selectedFlowLevel < 1) return
+                        let value = root.selectedFlowLevel
+                        root.menstruationFlowSubmitted(value)
+                        root.selectedFlowLevel = 1
+                    }
+                }
+
+                // ── وضعیت ثبت خونریزی ──
+                Text {
+                    id: menstruationStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+
+                // ── جداکننده بین دو بخش ──
+                Rectangle {
+                    width: parent.width
+                    height: root.periodActive ? 1 : 0
+                    color: root.themeManager.dividerColor
+                    visible: root.periodActive
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                // ── تاریخ پایان دوره (فقط وقتی دوره فعاله) ──
+                Text {
+                    width: parent.width
+                    height: root.periodActive ? implicitHeight : 0
+                    visible: root.periodActive
+                    text: "تاریخ پایان دوره:"
+                    font.pixelSize: 13
+                    font.family: "Vazir"
+                    color: root.themeManager.secondaryTextColor
+                    horizontalAlignment: Text.AlignRight
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                // ── دکمه پایان دوره ──
+                Rectangle {
+                    width: parent.width
+                    height: root.periodActive ? 50 : 0
+                    clip: true
+                    color: "transparent"
+                    Behavior on height { NumberAnimation { duration: 200 } }
+
+                    CButton {
+                        width: parent.width
+                        height: 42
+                        text: "⏹ پایان دوره"
+                        themeManager: root.themeManager
+                        textColor: "white"
+                        onClicked: {
+                            root.menstruationPeriodEndRequested()
+                        }
+                    }
+                }
+
+                // ── وضعیت پایان دوره ──
+                Text {
+                    id: periodEndStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
                 }
             }
         }
