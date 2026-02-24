@@ -260,76 +260,6 @@ Rectangle {
                 themeManager: root.themeManager
             }
 
-
-            // ===== بخش قد =====
-            Column {
-                width: parent.width
-                spacing: 10
-
-                Text {
-                    text: "📏 قد (متر)"
-                    font.pixelSize: 16
-                    font.bold: true
-                    color: root.themeManager.primaryTextColor
-                    Behavior on color { ColorAnimation { duration: 300 } }
-                }
-
-                TextField {
-                    id: heightInput
-                    width: parent.width
-                    placeholderText: "مثال: 1.75"
-                    placeholderTextColor: root.themeManager.inputPlaceholderColor
-
-                    background: Rectangle {
-                        color: root.themeManager.inputBackgroundColor
-                        border.color: root.themeManager.inputBorderColor
-                        border.width: 1
-                        radius: 4
-
-                        Behavior on color { ColorAnimation { duration: 300 } }
-                        Behavior on border.color { ColorAnimation { duration: 300 } }
-                    }
-
-                    color: root.themeManager.primaryTextColor
-                    Behavior on color { ColorAnimation { duration: 300 } }
-
-                    KeyNavigation.tab: heightRegister
-                }
-
-                CButton {
-                    id: heightRegister
-                    text: "ثبت قد"
-                    width: parent.width
-                    height: 40
-                    themeManager: root.themeManager  // ✅ ارسال theme به دکمه
-
-                    onClicked: {
-                        let value = parseFloat(heightInput.text)
-                        if (!isNaN(value) && value > 0) {
-                            root.heightSubmitted(value)
-                        } else {
-                            heightStatus.text = "❌ مقدار نامعتبر"
-                            heightStatus.color = "red"
-                        }
-                        heightInput.text = ""
-                    }
-
-                    KeyNavigation.tab: weightInput
-                }
-
-                Text {
-                    id: heightStatus
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    font.pixelSize: 11
-                    color: "gray"
-                }
-            }
-
-            Divider {
-                themeManager: root.themeManager
-            }
-
             // ===== بخش وزن =====
             Column {
                 width: parent.width
@@ -497,61 +427,181 @@ Rectangle {
                 themeManager: root.themeManager
             }
 
-            // ===== بخش ضربان قلب =====
+            // ── بخش قاعدگی ──
             Column {
                 width: parent.width
-                spacing: 10
+                spacing: 12
 
+                // ── هدر بخش ──
                 Text {
-                    text: "💓 ضربان قلب (BPM)"
-                    font.pixelSize: 16
+                    width: parent.width
+                    text: "🩸 قاعدگی"
+                    font.pixelSize: 15
                     font.bold: true
+                    font.family: "Vazir"
                     color: root.themeManager.primaryTextColor
+                    horizontalAlignment: Text.AlignRight
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
 
-                TextField {
-                    id: heartRateInput
+                // ── نشانگر وضعیت دوره ──
+                Rectangle {
                     width: parent.width
-                    placeholderText: "مثال: 75"
-                    placeholderTextColor: root.themeManager.inputPlaceholderColor
+                    height: 32
+                    radius: 8
+                    color: root.periodActive
+                           ? Qt.rgba(0.85, 0.1, 0.3, 0.15)
+                           : Qt.rgba(0.5, 0.5, 0.5, 0.1)
+                    Behavior on color { ColorAnimation { duration: 300 } }
 
-                    background: Rectangle {
-                        color: root.themeManager.inputBackgroundColor
-                        border.color: root.themeManager.inputBorderColor
-                        border.width: 1
-                        radius: 4
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.periodActive
+                              ? "● دوره فعال است"
+                              : "○ دوره‌ای فعال نیست"
+                        font.pixelSize: 13
+                        font.family: "Vazir"
+                        color: root.periodActive
+                               ? "#D81B60"
+                               : root.themeManager.secondaryTextColor
                         Behavior on color { ColorAnimation { duration: 300 } }
-                        Behavior on border.color { ColorAnimation { duration: 300 } }
                     }
-
-                    color: root.themeManager.primaryTextColor
-                    Behavior on color { ColorAnimation { duration: 300 } }
-                    KeyNavigation.tab: heartRateRegister
                 }
 
-                CButton {
-                    id: heartRateRegister
-                    text: "ثبت ضربان قلب"
+                // ── انتخاب سطح خونریزی ──
+                Text {
                     width: parent.width
-                    height: 40
+                    text: "شدت خونریزی:"
+                    font.pixelSize: 13
+                    font.family: "Vazir"
+                    color: root.themeManager.secondaryTextColor
+                    horizontalAlignment: Text.AlignRight
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft
+
+                    Repeater {
+                        model: [
+                            { label: "سبک",   level: 1,
+                              activeBack: "#F8BBD0", activeBorder: "#F48FB1", activeText: "#880E4F" },
+                            { label: "متوسط", level: 2,
+                              activeBack: "#F48FB1", activeBorder: "#E91E8C", activeText: "#880E4F" },
+                            { label: "سنگین", level: 3,
+                              activeBack: "#E91E63", activeBorder: "#C2185B", activeText: "#FFFFFF" }
+                        ]
+
+                        delegate: Rectangle {
+                            width: (parent.width - 16) / 3
+                            height: 36
+                            radius: 8
+                            color: root.selectedFlowLevel === modelData.level
+                                   ? modelData.activeBack
+                                   : Qt.rgba(0.5, 0.5, 0.5, 0.08)
+                            border.color: root.selectedFlowLevel === modelData.level
+                                          ? modelData.activeBorder
+                                          : root.themeManager.dividerColor
+                            border.width: root.selectedFlowLevel === modelData.level ? 2 : 1
+
+                            Behavior on color        { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                font.pixelSize: 13
+                                font.family: "Vazir"
+                                font.bold: root.selectedFlowLevel === modelData.level
+                                color: root.selectedFlowLevel === modelData.level
+                                       ? modelData.activeText
+                                       : root.themeManager.secondaryTextColor
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.selectedFlowLevel = modelData.level
+                            }
+                        }
+                    }
+                }
+
+                // ── دکمه ثبت خونریزی ──
+                CButton {
+                    width: parent.width
+                    height: 42
+                    text: "ثبت خونریزی 🩸"
                     themeManager: root.themeManager
+                    textColor: "white"
+                    enabled: root.selectedFlowLevel >= 1
+                    opacity: root.selectedFlowLevel >= 1 ? 1.0 : 0.5
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     onClicked: {
-                        let value = parseFloat(heartRateInput.text)
-                        if (!isNaN(value) && value > 0 && value < 300) {
-                            root.heartRateSubmitted(value)
-                        } else {
-                            heartRateStatus.text = "❌ مقدار نامعتبر (1-300)"
-                            heartRateStatus.color = "red"
-                        }
-                        heartRateInput.text = ""
+                        if (root.selectedFlowLevel < 1) return
+                        let value = root.selectedFlowLevel
+                        root.menstruationFlowSubmitted(value)
+                        root.selectedFlowLevel = 1
                     }
-                    KeyNavigation.tab: bloodGlucoseInput
                 }
 
+                // ── وضعیت ثبت خونریزی ──
                 Text {
-                    id: heartRateStatus
+                    id: menstruationStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+
+                // ── جداکننده بین دو بخش ──
+                Rectangle {
+                    width: parent.width
+                    height: root.periodActive ? 1 : 0
+                    color: root.themeManager.dividerColor
+                    visible: root.periodActive
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                // ── تاریخ پایان دوره (فقط وقتی دوره فعاله) ──
+                Text {
+                    width: parent.width
+                    height: root.periodActive ? implicitHeight : 0
+                    visible: root.periodActive
+                    text: "تاریخ پایان دوره:"
+                    font.pixelSize: 13
+                    font.family: "Vazir"
+                    color: root.themeManager.secondaryTextColor
+                    horizontalAlignment: Text.AlignRight
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                // ── دکمه پایان دوره ──
+                Rectangle {
+                    width: parent.width
+                    height: root.periodActive ? 50 : 0
+                    clip: true
+                    color: "transparent"
+                    Behavior on height { NumberAnimation { duration: 200 } }
+
+                    CButton {
+                        width: parent.width
+                        height: 42
+                        text: "⏹ پایان دوره"
+                        themeManager: root.themeManager
+                        textColor: "white"
+                        onClicked: {
+                            root.menstruationPeriodEndRequested()
+                        }
+                    }
+                }
+
+                // ── وضعیت پایان دوره ──
+                Text {
+                    id: periodEndStatus
                     width: parent.width
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
@@ -774,6 +824,72 @@ Rectangle {
                 themeManager: root.themeManager
             }
 
+            // ===== بخش ضربان قلب =====
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    text: "💓 ضربان قلب (BPM)"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: root.themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                }
+
+                TextField {
+                    id: heartRateInput
+                    width: parent.width
+                    placeholderText: "مثال: 75"
+                    placeholderTextColor: root.themeManager.inputPlaceholderColor
+
+                    background: Rectangle {
+                        color: root.themeManager.inputBackgroundColor
+                        border.color: root.themeManager.inputBorderColor
+                        border.width: 1
+                        radius: 4
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                        Behavior on border.color { ColorAnimation { duration: 300 } }
+                    }
+
+                    color: root.themeManager.primaryTextColor
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                    KeyNavigation.tab: heartRateRegister
+                }
+
+                CButton {
+                    id: heartRateRegister
+                    text: "ثبت ضربان قلب"
+                    width: parent.width
+                    height: 40
+                    themeManager: root.themeManager
+
+                    onClicked: {
+                        let value = parseFloat(heartRateInput.text)
+                        if (!isNaN(value) && value > 0 && value < 300) {
+                            root.heartRateSubmitted(value)
+                        } else {
+                            heartRateStatus.text = "❌ مقدار نامعتبر (1-300)"
+                            heartRateStatus.color = "red"
+                        }
+                        heartRateInput.text = ""
+                    }
+                    KeyNavigation.tab: bloodGlucoseInput
+                }
+
+                Text {
+                    id: heartRateStatus
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: "gray"
+                }
+            }
+
+            Divider {
+                themeManager: root.themeManager
+            }
+
             // ===== بخش اشباع اکسیژن خون (SpO₂) =====
             Column {
                 width: parent.width
@@ -912,190 +1028,77 @@ Rectangle {
                 }
             }
 
-            // ── بخش قاعدگی ──
             Divider {
                 themeManager: root.themeManager
             }
 
+            // ===== بخش قد =====
             Column {
                 width: parent.width
-                spacing: 12
+                spacing: 10
 
-                // ── هدر بخش ──
                 Text {
-                    width: parent.width
-                    text: "🩸 قاعدگی"
-                    font.pixelSize: 15
+                    text: "📏 قد (متر)"
+                    font.pixelSize: 16
                     font.bold: true
-                    font.family: "Vazir"
                     color: root.themeManager.primaryTextColor
-                    horizontalAlignment: Text.AlignRight
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
 
-                // ── نشانگر وضعیت دوره ──
-                Rectangle {
+                TextField {
+                    id: heightInput
                     width: parent.width
-                    height: 32
-                    radius: 8
-                    color: root.periodActive
-                           ? Qt.rgba(0.85, 0.1, 0.3, 0.15)
-                           : Qt.rgba(0.5, 0.5, 0.5, 0.1)
-                    Behavior on color { ColorAnimation { duration: 300 } }
+                    placeholderText: "مثال: 1.75"
+                    placeholderTextColor: root.themeManager.inputPlaceholderColor
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.periodActive
-                              ? "● دوره فعال است"
-                              : "○ دوره‌ای فعال نیست"
-                        font.pixelSize: 13
-                        font.family: "Vazir"
-                        color: root.periodActive
-                               ? "#D81B60"
-                               : root.themeManager.secondaryTextColor
+                    background: Rectangle {
+                        color: root.themeManager.inputBackgroundColor
+                        border.color: root.themeManager.inputBorderColor
+                        border.width: 1
+                        radius: 4
+
                         Behavior on color { ColorAnimation { duration: 300 } }
+                        Behavior on border.color { ColorAnimation { duration: 300 } }
                     }
-                }
 
-                // ── انتخاب سطح خونریزی ──
-                Text {
-                    width: parent.width
-                    text: "شدت خونریزی:"
-                    font.pixelSize: 13
-                    font.family: "Vazir"
-                    color: root.themeManager.secondaryTextColor
-                    horizontalAlignment: Text.AlignRight
+                    color: root.themeManager.primaryTextColor
                     Behavior on color { ColorAnimation { duration: 300 } }
+
+                    KeyNavigation.tab: heightRegister
                 }
 
-                Row {
-                    width: parent.width
-                    spacing: 8
-                    layoutDirection: Qt.RightToLeft
-
-                    Repeater {
-                        model: [
-                            { label: "سبک",   level: 1,
-                              activeBack: "#F8BBD0", activeBorder: "#F48FB1", activeText: "#880E4F" },
-                            { label: "متوسط", level: 2,
-                              activeBack: "#F48FB1", activeBorder: "#E91E8C", activeText: "#880E4F" },
-                            { label: "سنگین", level: 3,
-                              activeBack: "#E91E63", activeBorder: "#C2185B", activeText: "#FFFFFF" }
-                        ]
-
-                        delegate: Rectangle {
-                            width: (parent.width - 16) / 3
-                            height: 36
-                            radius: 8
-                            color: root.selectedFlowLevel === modelData.level
-                                   ? modelData.activeBack
-                                   : Qt.rgba(0.5, 0.5, 0.5, 0.08)
-                            border.color: root.selectedFlowLevel === modelData.level
-                                          ? modelData.activeBorder
-                                          : root.themeManager.dividerColor
-                            border.width: root.selectedFlowLevel === modelData.level ? 2 : 1
-
-                            Behavior on color        { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData.label
-                                font.pixelSize: 13
-                                font.family: "Vazir"
-                                font.bold: root.selectedFlowLevel === modelData.level
-                                color: root.selectedFlowLevel === modelData.level
-                                       ? modelData.activeText
-                                       : root.themeManager.secondaryTextColor
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: root.selectedFlowLevel = modelData.level
-                            }
-                        }
-                    }
-                }
-
-                // ── دکمه ثبت خونریزی ──
                 CButton {
+                    id: heightRegister
+                    text: "ثبت قد"
                     width: parent.width
-                    height: 42
-                    text: "ثبت خونریزی 🩸"
-                    themeManager: root.themeManager
-                    textColor: "white"
-                    enabled: root.selectedFlowLevel >= 1
-                    opacity: root.selectedFlowLevel >= 1 ? 1.0 : 0.5
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    height: 40
+                    themeManager: root.themeManager  // ✅ ارسال theme به دکمه
 
                     onClicked: {
-                        if (root.selectedFlowLevel < 1) return
-                        let value = root.selectedFlowLevel
-                        root.menstruationFlowSubmitted(value)
-                        root.selectedFlowLevel = 1
-                    }
-                }
-
-                // ── وضعیت ثبت خونریزی ──
-                Text {
-                    id: menstruationStatus
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    font.pixelSize: 11
-                    color: "gray"
-                }
-
-                // ── جداکننده بین دو بخش ──
-                Rectangle {
-                    width: parent.width
-                    height: root.periodActive ? 1 : 0
-                    color: root.themeManager.dividerColor
-                    visible: root.periodActive
-                    Behavior on color { ColorAnimation { duration: 300 } }
-                }
-
-                // ── تاریخ پایان دوره (فقط وقتی دوره فعاله) ──
-                Text {
-                    width: parent.width
-                    height: root.periodActive ? implicitHeight : 0
-                    visible: root.periodActive
-                    text: "تاریخ پایان دوره:"
-                    font.pixelSize: 13
-                    font.family: "Vazir"
-                    color: root.themeManager.secondaryTextColor
-                    horizontalAlignment: Text.AlignRight
-                    Behavior on color { ColorAnimation { duration: 300 } }
-                }
-
-                // ── دکمه پایان دوره ──
-                Rectangle {
-                    width: parent.width
-                    height: root.periodActive ? 50 : 0
-                    clip: true
-                    color: "transparent"
-                    Behavior on height { NumberAnimation { duration: 200 } }
-
-                    CButton {
-                        width: parent.width
-                        height: 42
-                        text: "⏹ پایان دوره"
-                        themeManager: root.themeManager
-                        textColor: "white"
-                        onClicked: {
-                            root.menstruationPeriodEndRequested()
+                        let value = parseFloat(heightInput.text)
+                        if (!isNaN(value) && value > 0) {
+                            root.heightSubmitted(value)
+                        } else {
+                            heightStatus.text = "❌ مقدار نامعتبر"
+                            heightStatus.color = "red"
                         }
+                        heightInput.text = ""
                     }
+
+                    KeyNavigation.tab: weightInput
                 }
 
-                // ── وضعیت پایان دوره ──
                 Text {
-                    id: periodEndStatus
+                    id: heightStatus
                     width: parent.width
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
                     color: "gray"
                 }
+            }
+
+            Divider {
+                themeManager: root.themeManager
             }
         }
     }

@@ -32,6 +32,7 @@ qt_add_executable(QMLHealthConnect
 qt6_add_resources(QMLHealthConnect "qmlchartsgallery"
     PREFIX "/"
     FILES
+        VERSION
         Main.qml
         CButton.qml
         ThemeToggle.qml
