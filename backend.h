@@ -107,6 +107,8 @@ private:
     void savePeriodState();
     void loadPeriodState();
 
+    void askForPermission(const QStringList &permissions, int requestCode);
+
 signals:
     void permissionsState(bool success,QString message);
     void newDataRead(QList<QPointF> hList,

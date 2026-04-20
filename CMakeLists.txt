@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # ✅ خواندن VERSION از فایل
-file(READ "${CMAKE_SOURCE_DIR}/VERSION" VERSION_STRING)
+file(READ "${CMAKE_SOURCE_DIR}/version.txt" VERSION_STRING)
 string(STRIP "${VERSION_STRING}" VERSION_STRING)
 
 # ✅ تجزیه version به اجزای MAJOR.MINOR.PATCH
@@ -32,7 +32,6 @@ qt_add_executable(QMLHealthConnect
 qt6_add_resources(QMLHealthConnect "qmlchartsgallery"
     PREFIX "/"
     FILES
-        VERSION
         Main.qml
         CButton.qml
         ThemeToggle.qml
@@ -49,6 +48,7 @@ qt6_add_resources(QMLHealthConnect "qmlchartsgallery"
         Toast.qml
         DateTimePicker.qml
         PeriodTimebar.qml
+        version.txt
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

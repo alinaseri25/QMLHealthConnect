@@ -1,13 +1,87 @@
 #include "backend.h"
 
+static Backend* g_mainWindowInstance = nullptr;
+
+#ifdef ANDROID
+
+extern "C"
+    JNIEXPORT void JNICALL
+        Java_org_verya_QMLHealthConnect_TestBridge_nativeOnPermissionResult
+    (JNIEnv *env, jclass /*clazz*/, jstring msg)
+{
+    if (!g_mainWindowInstance)
+        return;
+
+    // تبدیل jstring به QString در همان thread JNI
+    QString jsonStr = QJniObject(msg).toString();
+
+    QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+    QJsonObject root = doc.object();
+    QJsonArray perms = root["results"].toArray();
+
+    for (const QJsonValue &v : perms) {
+        QJsonObject o = v.toObject();
+        QString permission = o["permission"].toString();
+        bool granted = o["granted"].toBool();
+        qDebug() << permission << (granted ? "✅" : "❌");
+    }
+
+    // QMetaObject::invokeMethod(g_mainWindowInstance, [=]() {
+    //     QString str = (qMsg == "start") ? "Play" : "Pause";
+
+    //     qDebug() << "str:" << str << "--msg:" << qMsg;
+
+    //     g_mainWindowInstance->onPlayPause(str);
+    // }, Qt::QueuedConnection);
+}
+
+#endif
+
 Backend::Backend(QObject *parent)
     : QObject{parent}
 {
+    g_mainWindowInstance = this;
+#ifdef ANDROID
+    QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid())
+        return;
+
+    QJniObject::callStaticMethod<void>(
+        "org/verya/DezliQC/MainActivity",
+        "manageScreenAndWakeLock",
+        "(Landroid/content/Context;ZZ)V",
+        context.object(),
+        (jboolean)true,  // screenAlwaysOn
+        (jboolean)true    // wakeLock
+        );
+
+    QJniObject::callStaticMethod<void>(
+        "org/verya/DezliQC/MainActivity",
+        "setDimTimeoutFromQt",
+        "(J)V",
+        0
+        );
+#endif
     loadAvailablePath();
 }
 
 void Backend::onQmlReady()
 {
+    QStringList permissions = { "android.permission.health.READ_HEIGHT",
+                                "android.permission.health.WRITE_HEIGHT",
+                                "android.permission.health.READ_WEIGHT",
+                                "android.permission.health.WRITE_WEIGHT",
+                                "android.permission.health.READ_BLOOD_PRESSURE",
+                                "android.permission.health.WRITE_BLOOD_PRESSURE",
+                                "android.permission.health.READ_HEART_RATE",
+                                "android.permission.health.WRITE_HEART_RATE",
+                                "android.permission.health.READ_BLOOD_GLUCOSE",
+                                "android.permission.health.WRITE_BLOOD_GLUCOSE",
+                                "android.permission.health.READ_OXYGEN_SATURATION",
+                                "android.permission.health.WRITE_OXYGEN_SATURATION",
+                                "android.permission.health.READ_MENSTRUATION",
+                                "android.permission.health.WRITE_MENSTRUATION"};
+    askForPermission(permissions,12);
     checkPermissions();
     loadPeriodState();
 }
@@ -1764,3 +1838,27 @@ void Backend::loadPeriodState()
 
     emit periodStateChanged(periodActive);
 }
+
+
+void Backend::askForPermission(const QStringList &permissions, int requestCode)
+{
+#ifdef ANDROID
+    QJniEnvironment env;
+    jobjectArray jPerms = env->NewObjectArray(permissions.size(),
+                                              env->FindClass("java/lang/String"),
+                                              nullptr);
+
+    for (int i = 0; i < permissions.size(); ++i)
+        env->SetObjectArrayElement(jPerms, i,
+                                   QJniObject::fromString(permissions[i]).object<jstring>());
+
+    QJniObject::callStaticMethod<void>(
+        "org/verya/QMLHealthConnect/MainActivity",
+        "requestAppPermissions",
+        "([Ljava/lang/String;I)V",
+        jPerms,
+        requestCode
+        );
+#endif
+}
+
